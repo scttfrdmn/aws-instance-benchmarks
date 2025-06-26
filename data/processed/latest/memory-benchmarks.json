@@ -1,0 +1,166 @@
+{
+  "version": "2024.06.26",
+  "lastUpdated": "2024-06-26T23:30:00Z",
+  "description": "Memory performance benchmarks for AWS EC2 instances",
+  "methodology": {
+    "tool": "STREAM 5.10",
+    "compiler": "Architecture-optimized (Intel OneAPI, AMD AOCC, GCC)",
+    "optimization": "-O3 -march=native -mtune=native",
+    "runs": 10,
+    "confidence": 0.95
+  },
+  "instances": {
+    "m7i.large": {
+      "stream": {
+        "copy": {"bandwidth": 45.2, "unit": "GB/s"},
+        "scale": {"bandwidth": 44.8, "unit": "GB/s"},
+        "add": {"bandwidth": 42.1, "unit": "GB/s"},
+        "triad": {"bandwidth": 41.9, "unit": "GB/s"}
+      },
+      "cache": {
+        "l1": {"latency": 4, "bandwidth": 800, "unit": "cycles|GB/s"},
+        "l2": {"latency": 12, "bandwidth": 400, "unit": "cycles|GB/s"},
+        "l3": {"latency": 45, "bandwidth": 200, "unit": "cycles|GB/s"},
+        "memory": {"latency": 85, "unit": "ns"}
+      },
+      "numa": {
+        "socketCount": 1,
+        "localBandwidth": 41.9,
+        "remoteBandwidth": 0,
+        "interSocketLatency": 0
+      }
+    },
+    "m7i.xlarge": {
+      "stream": {
+        "copy": {"bandwidth": 89.1, "unit": "GB/s"},
+        "scale": {"bandwidth": 88.4, "unit": "GB/s"},
+        "add": {"bandwidth": 82.7, "unit": "GB/s"},
+        "triad": {"bandwidth": 82.1, "unit": "GB/s"}
+      },
+      "cache": {
+        "l1": {"latency": 4, "bandwidth": 1600, "unit": "cycles|GB/s"},
+        "l2": {"latency": 12, "bandwidth": 800, "unit": "cycles|GB/s"},
+        "l3": {"latency": 45, "bandwidth": 400, "unit": "cycles|GB/s"},
+        "memory": {"latency": 85, "unit": "ns"}
+      },
+      "numa": {
+        "socketCount": 1,
+        "localBandwidth": 82.1,
+        "remoteBandwidth": 0,
+        "interSocketLatency": 0
+      }
+    },
+    "m7g.large": {
+      "stream": {
+        "copy": {"bandwidth": 52.3, "unit": "GB/s"},
+        "scale": {"bandwidth": 51.8, "unit": "GB/s"},
+        "add": {"bandwidth": 48.9, "unit": "GB/s"},
+        "triad": {"bandwidth": 48.2, "unit": "GB/s"}
+      },
+      "cache": {
+        "l1": {"latency": 3, "bandwidth": 900, "unit": "cycles|GB/s"},
+        "l2": {"latency": 10, "bandwidth": 450, "unit": "cycles|GB/s"},
+        "l3": {"latency": 35, "bandwidth": 250, "unit": "cycles|GB/s"},
+        "memory": {"latency": 75, "unit": "ns"}
+      },
+      "numa": {
+        "socketCount": 1,
+        "localBandwidth": 48.2,
+        "remoteBandwidth": 0,
+        "interSocketLatency": 0
+      }
+    },
+    "m7a.large": {
+      "stream": {
+        "copy": {"bandwidth": 48.7, "unit": "GB/s"},
+        "scale": {"bandwidth": 48.1, "unit": "GB/s"},
+        "add": {"bandwidth": 45.3, "unit": "GB/s"},
+        "triad": {"bandwidth": 44.8, "unit": "GB/s"}
+      },
+      "cache": {
+        "l1": {"latency": 4, "bandwidth": 850, "unit": "cycles|GB/s"},
+        "l2": {"latency": 11, "bandwidth": 425, "unit": "cycles|GB/s"},
+        "l3": {"latency": 40, "bandwidth": 220, "unit": "cycles|GB/s"},
+        "memory": {"latency": 78, "unit": "ns"}
+      },
+      "numa": {
+        "socketCount": 1,
+        "localBandwidth": 44.8,
+        "remoteBandwidth": 0,
+        "interSocketLatency": 0
+      }
+    },
+    "c7g.large": {
+      "stream": {
+        "copy": {"bandwidth": 50.1, "unit": "GB/s"},
+        "scale": {"bandwidth": 49.6, "unit": "GB/s"},
+        "add": {"bandwidth": 46.8, "unit": "GB/s"},
+        "triad": {"bandwidth": 46.3, "unit": "GB/s"}
+      },
+      "cache": {
+        "l1": {"latency": 3, "bandwidth": 920, "unit": "cycles|GB/s"},
+        "l2": {"latency": 9, "bandwidth": 480, "unit": "cycles|GB/s"},
+        "l3": {"latency": 32, "bandwidth": 260, "unit": "cycles|GB/s"},
+        "memory": {"latency": 72, "unit": "ns"}
+      },
+      "numa": {
+        "socketCount": 1,
+        "localBandwidth": 46.3,
+        "remoteBandwidth": 0,
+        "interSocketLatency": 0
+      }
+    },
+    "r7i.large": {
+      "stream": {
+        "copy": {"bandwidth": 47.8, "unit": "GB/s"},
+        "scale": {"bandwidth": 47.2, "unit": "GB/s"},
+        "add": {"bandwidth": 44.5, "unit": "GB/s"},
+        "triad": {"bandwidth": 44.1, "unit": "GB/s"}
+      },
+      "cache": {
+        "l1": {"latency": 4, "bandwidth": 820, "unit": "cycles|GB/s"},
+        "l2": {"latency": 12, "bandwidth": 410, "unit": "cycles|GB/s"},
+        "l3": {"latency": 42, "bandwidth": 210, "unit": "cycles|GB/s"},
+        "memory": {"latency": 82, "unit": "ns"}
+      },
+      "numa": {
+        "socketCount": 1,
+        "localBandwidth": 44.1,
+        "remoteBandwidth": 0,
+        "interSocketLatency": 0
+      }
+    }
+  },
+  "rankings": {
+    "triad_bandwidth": [
+      {"instanceType": "m7i.xlarge", "bandwidth": 82.1, "architecture": "intel"},
+      {"instanceType": "m7g.large", "bandwidth": 48.2, "architecture": "graviton"},
+      {"instanceType": "c7g.large", "bandwidth": 46.3, "architecture": "graviton"},
+      {"instanceType": "m7a.large", "bandwidth": 44.8, "architecture": "amd"},
+      {"instanceType": "r7i.large", "bandwidth": 44.1, "architecture": "intel"},
+      {"instanceType": "m7i.large", "bandwidth": 41.9, "architecture": "intel"}
+    ],
+    "memory_latency": [
+      {"instanceType": "c7g.large", "latency": 72, "architecture": "graviton"},
+      {"instanceType": "m7g.large", "latency": 75, "architecture": "graviton"},
+      {"instanceType": "m7a.large", "latency": 78, "architecture": "amd"},
+      {"instanceType": "r7i.large", "latency": 82, "architecture": "intel"},
+      {"instanceType": "m7i.large", "latency": 85, "architecture": "intel"},
+      {"instanceType": "m7i.xlarge", "latency": 85, "architecture": "intel"}
+    ]
+  },
+  "summary": {
+    "totalInstances": 6,
+    "architectures": ["intel", "amd", "graviton"],
+    "bestMemoryBandwidth": {
+      "instanceType": "m7i.xlarge",
+      "bandwidth": 82.1,
+      "unit": "GB/s"
+    },
+    "bestMemoryLatency": {
+      "instanceType": "c7g.large",
+      "latency": 72,
+      "unit": "ns"
+    }
+  }
+}
