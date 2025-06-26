@@ -1,0 +1,70 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["docs/**", "data/processed/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+        
+      - name: Build site
+        run: |
+          mkdir -p _site
+          
+          # Copy any existing docs
+          if [ -d "docs/_site" ]; then
+            cp -r docs/_site/* _site/
+          else
+            # Create basic index if none exists
+            cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>AWS Instance Benchmarks</title>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body>
+              <h1>AWS Instance Benchmarks</h1>
+              <p>Benchmark data will be available here once collection workflows complete.</p>
+              <p><a href="https://github.com/scttfrdmn/aws-instance-benchmarks">View Repository</a></p>
+          </body>
+          </html>
+          EOF
+          fi
+          
+          # Copy processed data for API access
+          if [ -d "data/processed" ]; then
+            mkdir -p _site/data
+            cp -r data/processed _site/data/
+          fi
+          
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: '_site'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

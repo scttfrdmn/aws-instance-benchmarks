@@ -7,15 +7,20 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/aws"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/containers"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/discovery"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -76,6 +81,7 @@ func main() {
 	var subnet string
 	var skipQuota bool
 	var benchmarkSuites []string
+	var maxConcurrency int
 
 	runCmd.Flags().StringSliceVar(&instanceTypes, "instance-types", []string{"m7i.large"}, "Instance types to benchmark")
 	runCmd.Flags().StringVar(&region, "region", "us-east-1", "AWS region")
@@ -84,6 +90,7 @@ func main() {
 	runCmd.Flags().StringVar(&subnet, "subnet", "", "Subnet ID")
 	runCmd.Flags().BoolVar(&skipQuota, "skip-quota-check", false, "Skip quota validation before launching")
 	runCmd.Flags().StringSliceVar(&benchmarkSuites, "benchmarks", []string{"stream"}, "Benchmark suites to run")
+	runCmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 5, "Maximum number of concurrent benchmarks")
 
 	rootCmd.AddCommand(discoverCmd)
 	rootCmd.AddCommand(buildCmd)
@@ -200,6 +207,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	subnet, _ := cmd.Flags().GetString("subnet")
 	skipQuota, _ := cmd.Flags().GetBool("skip-quota-check")
 	benchmarkSuites, _ := cmd.Flags().GetStringSlice("benchmarks")
+	maxConcurrency, _ := cmd.Flags().GetInt("max-concurrency")
 
 	// Validate required parameters
 	if keyPair == "" {
@@ -217,6 +225,23 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create orchestrator: %w", err)
 	}
 
+	// Initialize S3 storage for results
+	storageConfig := storage.Config{
+		BucketName:         "aws-instance-benchmarks-data",
+		KeyPrefix:          "instance-benchmarks/",
+		EnableCompression:  false,
+		EnableVersioning:   false,
+		RetryAttempts:      3,
+		UploadTimeout:      5 * time.Minute,
+		BatchSize:          1,
+		StorageClass:       "STANDARD",
+		DataVersion:        "1.0",
+	}
+	s3Storage, err := storage.NewS3Storage(ctx, storageConfig)
+	if err != nil {
+		return fmt.Errorf("failed to initialize S3 storage: %w", err)
+	}
+
 	registry, _ := cmd.Parent().PersistentFlags().GetString("registry")
 	namespace, _ := cmd.Parent().PersistentFlags().GetString("namespace")
 	if registry == "" {
@@ -226,12 +251,16 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 		namespace = "aws-benchmarks"
 	}
 
-	fmt.Printf("Starting benchmark run for %d instance types in region %s\n", len(instanceTypes), region)
+	// Create benchmark jobs for parallel execution
+	type benchmarkJob struct {
+		instanceType   string
+		benchmarkSuite string
+		config         aws.BenchmarkConfig
+	}
 
+	var jobs []benchmarkJob
 	for _, instanceType := range instanceTypes {
 		for _, benchmarkSuite := range benchmarkSuites {
-			fmt.Printf("\nRunning %s benchmark on %s...\n", benchmarkSuite, instanceType)
-			
 			containerImage := fmt.Sprintf("%s/%s:%s-%s", registry, namespace, benchmarkSuite, 
 				getContainerTagForInstance(instanceType))
 
@@ -247,24 +276,91 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 				MaxRetries:      3,
 				Timeout:         10 * time.Minute,
 			}
-
-			result, err := orchestrator.RunBenchmark(ctx, config)
-			if err != nil {
-				if quotaErr, ok := err.(*aws.QuotaError); ok {
-					fmt.Printf("⚠️  Skipping %s due to quota: %s\n", instanceType, quotaErr.Message)
-					continue
-				}
-				fmt.Printf("❌ Failed to run benchmark on %s: %v\n", instanceType, err)
-				continue
-			}
-
-			fmt.Printf("✅ Completed %s benchmark on %s (took %v)\n", 
-				benchmarkSuite, instanceType, result.EndTime.Sub(result.StartTime))
-			fmt.Printf("   Instance: %s, Public IP: %s\n", result.InstanceID, result.PublicIP)
+			
+			jobs = append(jobs, benchmarkJob{
+				instanceType:   instanceType,
+				benchmarkSuite: benchmarkSuite,
+				config:         config,
+			})
 		}
 	}
 
-	fmt.Println("\nBenchmark run completed!")
+	fmt.Printf("Starting parallel benchmark run for %d jobs (%d instance types) in region %s\n", 
+		len(jobs), len(instanceTypes), region)
+	fmt.Printf("Max concurrency: %d\n", maxConcurrency)
+
+	// Create semaphore to limit concurrency
+	semaphore := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var resultsMutex sync.Mutex
+	
+	successCount := 0
+	failureCount := 0
+	startTime := time.Now()
+
+	// Execute benchmarks in parallel
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(j benchmarkJob) {
+			defer wg.Done()
+			
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			
+			fmt.Printf("🚀 Starting %s benchmark on %s...\n", j.benchmarkSuite, j.instanceType)
+			
+			result, err := orchestrator.RunBenchmark(ctx, j.config)
+			if err != nil {
+				resultsMutex.Lock()
+				failureCount++
+				resultsMutex.Unlock()
+				
+				if quotaErr, ok := err.(*aws.QuotaError); ok {
+					fmt.Printf("⚠️  Skipped %s due to quota: %s\n", j.instanceType, quotaErr.Message)
+					return
+				}
+				fmt.Printf("❌ Failed %s benchmark on %s: %v\n", j.benchmarkSuite, j.instanceType, err)
+				return
+			}
+
+			fmt.Printf("✅ Completed %s benchmark on %s (took %v)\n", 
+				j.benchmarkSuite, j.instanceType, result.EndTime.Sub(result.StartTime))
+			fmt.Printf("   Instance: %s, Public IP: %s\n", result.InstanceID, result.PublicIP)
+
+			// Store results to S3 and locally
+			if err := storeResults(ctx, s3Storage, result, j.benchmarkSuite, region); err != nil {
+				fmt.Printf("⚠️  Failed to store results for %s: %v\n", j.instanceType, err)
+			} else {
+				fmt.Printf("   Results stored successfully for %s\n", j.instanceType)
+			}
+			
+			resultsMutex.Lock()
+			successCount++
+			resultsMutex.Unlock()
+		}(job)
+	}
+
+	// Wait for all benchmarks to complete
+	wg.Wait()
+	totalTime := time.Since(startTime)
+
+	// Print summary report
+	fmt.Printf("\n📊 Benchmark Run Summary:\n")
+	fmt.Printf("   Total jobs: %d\n", len(jobs))
+	fmt.Printf("   Successful: %d\n", successCount)
+	fmt.Printf("   Failed: %d\n", failureCount)
+	fmt.Printf("   Total time: %v\n", totalTime)
+	fmt.Printf("   Average time per job: %v\n", totalTime/time.Duration(len(jobs)))
+	
+	if maxConcurrency > 1 {
+		sequentialTime := time.Duration(len(jobs)) * 48 * time.Second // Estimated 48s per benchmark
+		efficiency := float64(sequentialTime) / float64(totalTime) * 100
+		fmt.Printf("   Estimated speedup: %.1fx (%.0f%% efficiency)\n", 
+			float64(sequentialTime)/float64(totalTime), efficiency)
+	}
+
+	fmt.Println("\n✅ Parallel benchmark execution completed!")
 	return nil
 }
 
@@ -285,6 +381,66 @@ func getContainerTagForInstance(instanceType string) string {
 	return "intel-skylake" // Default fallback
 }
 
+func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *aws.InstanceResult, benchmarkSuite string, region string) error {
+	// Create comprehensive result structure for JSON storage following ComputeCompass integration format
+	resultData := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"timestamp":        result.StartTime.UTC().Format(time.RFC3339),
+			"instance_type":    result.InstanceType,
+			"instance_id":      result.InstanceID,
+			"benchmark_suite":  benchmarkSuite,
+			"region":          region,
+			"duration_seconds": result.EndTime.Sub(result.StartTime).Seconds(),
+			"data_version":    "1.0",
+			"collection_method": "automated",
+		},
+		"performance_data": result.BenchmarkData,
+		"system_info": map[string]interface{}{
+			"public_ip":   result.PublicIP,
+			"private_ip":  result.PrivateIP,
+			"status":      result.Status,
+			"architecture": getArchitectureFromInstance(result.InstanceType),
+			"instance_family": extractInstanceFamily(result.InstanceType),
+		},
+		"execution_context": map[string]interface{}{
+			"container_runtime": "docker",
+			"benchmark_version": "latest",
+			"compiler_optimizations": getCompilerOptimizations(result.InstanceType),
+		},
+	}
+
+	// Convert to JSON
+	jsonData, err := json.MarshalIndent(resultData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal results: %w", err)
+	}
+
+	// Generate filename with timestamp
+	timestamp := result.StartTime.UTC().Format("20060102-150405")
+	filename := fmt.Sprintf("%s-%s-%s.json", result.InstanceType, benchmarkSuite, timestamp)
+	
+	// Store locally
+	localDir := filepath.Join("results", result.StartTime.UTC().Format("2006-01-02"))
+	if err := os.MkdirAll(localDir, 0755); err != nil {
+		return fmt.Errorf("failed to create local directory: %w", err)
+	}
+	
+	localPath := filepath.Join(localDir, filename)
+	if err := os.WriteFile(localPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write local file: %w", err)
+	}
+
+	// Store to S3
+	if err := s3Storage.StoreResult(ctx, resultData); err != nil {
+		return fmt.Errorf("failed to store to S3: %w", err)
+	}
+
+	fmt.Printf("   Local:  %s\n", localPath)
+	fmt.Printf("   S3:     Stored to S3 with structured key\n")
+	
+	return nil
+}
+
 func extractInstanceFamily(instanceType string) string {
 	// Simple extraction - get everything before the first dot
 	parts := strings.Split(instanceType, ".")
@@ -292,4 +448,29 @@ func extractInstanceFamily(instanceType string) string {
 		return parts[0]
 	}
 	return instanceType
+}
+
+func getArchitectureFromInstance(instanceType string) string {
+	// Determine architecture based on instance type
+	if strings.Contains(instanceType, "g.") || strings.HasSuffix(instanceType, "g") {
+		if strings.HasPrefix(instanceType, "m") || strings.HasPrefix(instanceType, "c") || 
+			strings.HasPrefix(instanceType, "r") || strings.HasPrefix(instanceType, "t") {
+			return "arm64" // Graviton instances
+		}
+	}
+	return "x86_64" // Intel/AMD instances
+}
+
+func getCompilerOptimizations(instanceType string) string {
+	arch := getArchitectureFromInstance(instanceType)
+	if arch == "arm64" {
+		return "-O3 -march=native -mtune=native -mcpu=neoverse-v1"
+	}
+	
+	// Detect Intel vs AMD for x86_64
+	family := extractInstanceFamily(instanceType)
+	if strings.Contains(family, "a") {
+		return "-O3 -march=native -mtune=native -mprefer-avx128" // AMD optimizations
+	}
+	return "-O3 -march=native -mtune=native -mavx2" // Intel optimizations
 }

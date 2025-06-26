@@ -429,9 +429,12 @@ func (o *Orchestrator) launchInstance(ctx context.Context, config BenchmarkConfi
 func (o *Orchestrator) getLatestAMI(ctx context.Context, instanceType string) (string, error) {
 	// Determine architecture based on instance type
 	architecture := "x86_64"
-	if strings.Contains(instanceType, "g") && (strings.HasPrefix(instanceType, "m") || 
-		strings.HasPrefix(instanceType, "c") || strings.HasPrefix(instanceType, "r")) {
-		architecture = "arm64" // Graviton instances
+	// Check for Graviton instances (end with 'g' after the size, e.g., m7g.large, c7g.xlarge)
+	if strings.Contains(instanceType, "g.") || strings.HasSuffix(instanceType, "g") {
+		if strings.HasPrefix(instanceType, "m") || strings.HasPrefix(instanceType, "c") || 
+			strings.HasPrefix(instanceType, "r") || strings.HasPrefix(instanceType, "t") {
+			architecture = "arm64" // Graviton instances
+		}
 	}
 
 	input := &ec2.DescribeImagesInput{

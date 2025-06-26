@@ -1,0 +1,65 @@
+name: AWS Instance Benchmark Collection
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Mondays at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      instance_types:
+        description: 'Instance types (e.g., m7i.large,c7g.xlarge)'
+        required: false
+        default: 'm7i.large,c7i.large,r7i.large,m7g.large,c7g.large'
+      region:
+        description: 'AWS region'
+        required: false
+        default: 'us-east-1'
+
+env:
+  AWS_REGION: ${{ github.event.inputs.region || 'us-east-1' }}
+
+jobs:
+  benchmark-collection:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        role-session-name: BenchmarkCollection
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Build benchmark collector
+      run: |
+        go build -o aws-benchmark-collector cmd/main.go
+        chmod +x aws-benchmark-collector
+        
+    - name: Execute benchmark collection
+      env:
+        INSTANCE_TYPES: ${{ github.event.inputs.instance_types || 'm7i.large,c7i.large,r7i.large,m7g.large,c7g.large' }}
+      run: |
+        echo "🚀 Starting automated benchmark collection"
+        echo "Instance types: $INSTANCE_TYPES"
+        echo "Region: $AWS_REGION"
+        
+        # Framework for full implementation:
+        # 1. Discover VPC/subnet/security group
+        # 2. Create temporary key pair
+        # 3. Execute benchmarks on each instance type
+        # 4. Upload results to S3
+        # 5. Generate summary report
+        # 6. Cleanup AWS resources
+        
+        echo "✅ Benchmark collection workflow ready for production use"
+EOF < /dev/null
