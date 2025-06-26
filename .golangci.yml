@@ -1,0 +1,95 @@
+# golangci-lint configuration for AWS Instance Benchmarks
+# Enforces comprehensive documentation standards
+version: 2
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+
+linters-settings:
+  # Enforce function/method documentation
+  revive:
+    rules:
+      # Require comments on exported functions
+      - name: exported
+        severity: error
+        arguments:
+          - "checkPrivateReceivers"
+          - "sayRepetitiveInsteadOfStutter"
+      
+      # Require package-level documentation
+      - name: package-comments
+        severity: error
+        
+      # Enforce consistent commenting style
+      - name: comment-spacings
+        severity: error
+
+  # Additional documentation checks
+  stylecheck:
+    checks: ["all"]
+    
+  # Check for missing comments on complex functions
+  gocognit:
+    min-complexity: 10  # Functions with complexity >10 require detailed comments
+
+  # Enforce consistent naming with documentation
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  # Check for proper error documentation
+  err113:
+    check-type-assertions: true
+
+  # Documentation formatting
+  godot:
+    # Check that comments end with a period
+    scope: declarations
+    exclude:
+      - "check that"
+    period: true
+    capital: false
+
+linters:
+  enable:
+    - revive          # Documentation and style enforcement
+    - gocognit        # Complexity analysis
+    - goconst         # Constant extraction
+    - err113          # Error wrapping
+    - godot           # Comment formatting
+    - misspell        # Catch documentation typos
+    - unconvert       # Remove unnecessary conversions
+    - unparam         # Detect unused parameters (helps with documentation)
+    - staticcheck     # Comprehensive static analysis
+    - gocritic        # Additional code quality checks
+    - errcheck        # Check for unchecked errors (enabled by default)
+    - ineffassign     # Detect ineffective assignments (enabled by default)
+    - unused          # Find unused code (enabled by default)
+
+issues:
+  # Exclude common false positives
+  exclude-rules:
+    # Don't require comments on test files' helper functions
+    - path: _test\.go
+      linters:
+        - revive
+      text: "exported"
+        
+    # Allow longer lines in comments for clarity
+    - linters:
+        - lll
+      source: "^\\s*//.*$"
+
+    # Allow TODO comments in development
+    - linters:
+        - godox
+      text: "TODO"
+
+  # Show all issues
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+severity:
+  default-severity: error  # Make documentation violations errors, not warnings

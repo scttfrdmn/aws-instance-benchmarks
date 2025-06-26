@@ -11,6 +11,7 @@ Create an open, community-driven database of comprehensive performance benchmark
 - **85%+ Coverage**: Maintain comprehensive test coverage across all components
 - **TypeScript Strict**: Use strict type checking for reliability
 - **Pre-commit Hooks**: Automated linting, formatting, and testing
+- **Comprehensive Documentation**: Every exported function must have detailed documentation with examples for developer onboarding
 
 ### **2. Open & Transparent**
 - **Open Data Format**: GitHub-hosted JSON with versioned schemas

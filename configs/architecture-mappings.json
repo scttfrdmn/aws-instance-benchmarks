@@ -1,0 +1,896 @@
+{
+  "a1": {
+    "instanceFamily": "a1",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "c1": {
+    "instanceFamily": "c1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c3": {
+    "instanceFamily": "c3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c4": {
+    "instanceFamily": "c4",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c5": {
+    "instanceFamily": "c5",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c5a": {
+    "instanceFamily": "c5a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "c5ad": {
+    "instanceFamily": "c5ad",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "c5d": {
+    "instanceFamily": "c5d",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c5n": {
+    "instanceFamily": "c5n",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c6a": {
+    "instanceFamily": "c6a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "c6g": {
+    "instanceFamily": "c6g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "c6gd": {
+    "instanceFamily": "c6gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "c6gn": {
+    "instanceFamily": "c6gn",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "c6i": {
+    "instanceFamily": "c6i",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c6id": {
+    "instanceFamily": "c6id",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c6in": {
+    "instanceFamily": "c6in",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "c7a": {
+    "instanceFamily": "c7a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen4",
+    "processorInfo": "AMD"
+  },
+  "c7g": {
+    "instanceFamily": "c7g",
+    "architecture": "arm64",
+    "containerTag": "graviton3",
+    "processorInfo": "AWS"
+  },
+  "c7gd": {
+    "instanceFamily": "c7gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "c7gn": {
+    "instanceFamily": "c7gn",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "c7i": {
+    "instanceFamily": "c7i",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.12xlarge": {
+    "instanceFamily": "c7i-flex.12xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.16xlarge": {
+    "instanceFamily": "c7i-flex.16xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.2xlarge": {
+    "instanceFamily": "c7i-flex.2xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.4xlarge": {
+    "instanceFamily": "c7i-flex.4xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.8xlarge": {
+    "instanceFamily": "c7i-flex.8xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.large": {
+    "instanceFamily": "c7i-flex.large",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c7i-flex.xlarge": {
+    "instanceFamily": "c7i-flex.xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "c8g": {
+    "instanceFamily": "c8g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "c8gd": {
+    "instanceFamily": "c8gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "d2": {
+    "instanceFamily": "d2",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "d3": {
+    "instanceFamily": "d3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "d3en": {
+    "instanceFamily": "d3en",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "dl1": {
+    "instanceFamily": "dl1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "dl2q": {
+    "instanceFamily": "dl2q",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "f1": {
+    "instanceFamily": "f1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "f2": {
+    "instanceFamily": "f2",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "g4ad": {
+    "instanceFamily": "g4ad",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "g4dn": {
+    "instanceFamily": "g4dn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "g5": {
+    "instanceFamily": "g5",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "g5g": {
+    "instanceFamily": "g5g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "g6": {
+    "instanceFamily": "g6",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "g6e": {
+    "instanceFamily": "g6e",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "gr6": {
+    "instanceFamily": "gr6",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "h1": {
+    "instanceFamily": "h1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i2": {
+    "instanceFamily": "i2",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i3": {
+    "instanceFamily": "i3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i3en": {
+    "instanceFamily": "i3en",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i4g": {
+    "instanceFamily": "i4g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "i4i": {
+    "instanceFamily": "i4i",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i7i": {
+    "instanceFamily": "i7i",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i7ie": {
+    "instanceFamily": "i7ie",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "i8g": {
+    "instanceFamily": "i8g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "im4gn": {
+    "instanceFamily": "im4gn",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "inf1": {
+    "instanceFamily": "inf1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "inf2": {
+    "instanceFamily": "inf2",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "is4gen": {
+    "instanceFamily": "is4gen",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "m1": {
+    "instanceFamily": "m1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m2": {
+    "instanceFamily": "m2",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m3": {
+    "instanceFamily": "m3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m4": {
+    "instanceFamily": "m4",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m5": {
+    "instanceFamily": "m5",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m5a": {
+    "instanceFamily": "m5a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "m5ad": {
+    "instanceFamily": "m5ad",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "m5d": {
+    "instanceFamily": "m5d",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m5dn": {
+    "instanceFamily": "m5dn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m5n": {
+    "instanceFamily": "m5n",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m5zn": {
+    "instanceFamily": "m5zn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m6a": {
+    "instanceFamily": "m6a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "m6g": {
+    "instanceFamily": "m6g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "m6gd": {
+    "instanceFamily": "m6gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "m6i": {
+    "instanceFamily": "m6i",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m6id": {
+    "instanceFamily": "m6id",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m6idn": {
+    "instanceFamily": "m6idn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m6in": {
+    "instanceFamily": "m6in",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "m7a": {
+    "instanceFamily": "m7a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen4",
+    "processorInfo": "AMD"
+  },
+  "m7g": {
+    "instanceFamily": "m7g",
+    "architecture": "arm64",
+    "containerTag": "graviton3",
+    "processorInfo": "AWS"
+  },
+  "m7gd": {
+    "instanceFamily": "m7gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "m7i": {
+    "instanceFamily": "m7i",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.12xlarge": {
+    "instanceFamily": "m7i-flex.12xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.16xlarge": {
+    "instanceFamily": "m7i-flex.16xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.2xlarge": {
+    "instanceFamily": "m7i-flex.2xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.4xlarge": {
+    "instanceFamily": "m7i-flex.4xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.8xlarge": {
+    "instanceFamily": "m7i-flex.8xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.large": {
+    "instanceFamily": "m7i-flex.large",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m7i-flex.xlarge": {
+    "instanceFamily": "m7i-flex.xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "m8g": {
+    "instanceFamily": "m8g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "m8gd": {
+    "instanceFamily": "m8gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "mac1": {
+    "instanceFamily": "mac1",
+    "architecture": "x86_64_mac",
+    "containerTag": "x86_64_mac-unknown",
+    "processorInfo": "Intel"
+  },
+  "mac2": {
+    "instanceFamily": "mac2",
+    "architecture": "arm64_mac",
+    "containerTag": "arm64_mac-unknown",
+    "processorInfo": "Apple"
+  },
+  "mac2-m1ultra.metal": {
+    "instanceFamily": "mac2-m1ultra.metal",
+    "architecture": "arm64_mac",
+    "containerTag": "arm64_mac-unknown",
+    "processorInfo": "Apple"
+  },
+  "mac2-m2.metal": {
+    "instanceFamily": "mac2-m2.metal",
+    "architecture": "arm64_mac",
+    "containerTag": "arm64_mac-unknown",
+    "processorInfo": "Apple"
+  },
+  "mac2-m2pro.metal": {
+    "instanceFamily": "mac2-m2pro.metal",
+    "architecture": "arm64_mac",
+    "containerTag": "arm64_mac-unknown",
+    "processorInfo": "Apple"
+  },
+  "p3": {
+    "instanceFamily": "p3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "p3dn": {
+    "instanceFamily": "p3dn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "p4d": {
+    "instanceFamily": "p4d",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "p4de": {
+    "instanceFamily": "p4de",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "p5": {
+    "instanceFamily": "p5",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "p5e": {
+    "instanceFamily": "p5e",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "p5en": {
+    "instanceFamily": "p5en",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "p6-b200.48xlarge": {
+    "instanceFamily": "p6-b200.48xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r3": {
+    "instanceFamily": "r3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r4": {
+    "instanceFamily": "r4",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r5": {
+    "instanceFamily": "r5",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r5a": {
+    "instanceFamily": "r5a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "r5ad": {
+    "instanceFamily": "r5ad",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "r5b": {
+    "instanceFamily": "r5b",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r5d": {
+    "instanceFamily": "r5d",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r5dn": {
+    "instanceFamily": "r5dn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r5n": {
+    "instanceFamily": "r5n",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r6a": {
+    "instanceFamily": "r6a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "r6g": {
+    "instanceFamily": "r6g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "r6gd": {
+    "instanceFamily": "r6gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "r6i": {
+    "instanceFamily": "r6i",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r6id": {
+    "instanceFamily": "r6id",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r6idn": {
+    "instanceFamily": "r6idn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r6in": {
+    "instanceFamily": "r6in",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "r7a": {
+    "instanceFamily": "r7a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen4",
+    "processorInfo": "AMD"
+  },
+  "r7g": {
+    "instanceFamily": "r7g",
+    "architecture": "arm64",
+    "containerTag": "graviton3",
+    "processorInfo": "AWS"
+  },
+  "r7gd": {
+    "instanceFamily": "r7gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "r7i": {
+    "instanceFamily": "r7i",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "r7iz": {
+    "instanceFamily": "r7iz",
+    "architecture": "x86_64",
+    "containerTag": "intel-icelake",
+    "processorInfo": "Intel"
+  },
+  "r8g": {
+    "instanceFamily": "r8g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "r8gd": {
+    "instanceFamily": "r8gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "t1": {
+    "instanceFamily": "t1",
+    "architecture": "i386",
+    "containerTag": "i386-unknown",
+    "processorInfo": "Intel"
+  },
+  "t2": {
+    "instanceFamily": "t2",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "t3": {
+    "instanceFamily": "t3",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "t3a": {
+    "instanceFamily": "t3a",
+    "architecture": "x86_64",
+    "containerTag": "amd-zen3",
+    "processorInfo": "AMD"
+  },
+  "t4g": {
+    "instanceFamily": "t4g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "trn1": {
+    "instanceFamily": "trn1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "trn1n": {
+    "instanceFamily": "trn1n",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u-3tb1.56xlarge": {
+    "instanceFamily": "u-3tb1.56xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u-6tb1.112xlarge": {
+    "instanceFamily": "u-6tb1.112xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u-6tb1.56xlarge": {
+    "instanceFamily": "u-6tb1.56xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u7i-12tb.224xlarge": {
+    "instanceFamily": "u7i-12tb.224xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u7i-6tb.112xlarge": {
+    "instanceFamily": "u7i-6tb.112xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u7i-8tb.112xlarge": {
+    "instanceFamily": "u7i-8tb.112xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u7in-16tb.224xlarge": {
+    "instanceFamily": "u7in-16tb.224xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u7in-24tb.224xlarge": {
+    "instanceFamily": "u7in-24tb.224xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "u7in-32tb.224xlarge": {
+    "instanceFamily": "u7in-32tb.224xlarge",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "vt1": {
+    "instanceFamily": "vt1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "x1": {
+    "instanceFamily": "x1",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "x1e": {
+    "instanceFamily": "x1e",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "x2gd": {
+    "instanceFamily": "x2gd",
+    "architecture": "arm64",
+    "containerTag": "arm64-unknown",
+    "processorInfo": "AWS"
+  },
+  "x2idn": {
+    "instanceFamily": "x2idn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "x2iedn": {
+    "instanceFamily": "x2iedn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "x2iezn": {
+    "instanceFamily": "x2iezn",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  },
+  "x8g": {
+    "instanceFamily": "x8g",
+    "architecture": "arm64",
+    "containerTag": "graviton2",
+    "processorInfo": "AWS"
+  },
+  "z1d": {
+    "instanceFamily": "z1d",
+    "architecture": "x86_64",
+    "containerTag": "intel-skylake",
+    "processorInfo": "Intel"
+  }
+}

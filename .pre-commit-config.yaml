@@ -1,0 +1,77 @@
+# Pre-commit hooks for AWS Instance Benchmarks
+# Enforces documentation standards before commits
+
+repos:
+  # Go-specific hooks
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      # Format code consistently
+      - id: go-fmt
+      
+      # Organize imports
+      - id: go-imports
+      
+      # Run comprehensive linting (includes documentation checks)
+      - id: golangci-lint
+        args: [--config=.golangci.yml]
+        
+      # Ensure tests pass
+      - id: go-unit-tests
+      
+      # Check for vulnerabilities
+      - id: go-sec
+        args: ['-quiet']
+
+  # Documentation-specific checks
+  - repo: local
+    hooks:
+      # Custom hook to check for package documentation
+      - id: check-package-docs
+        name: Check Package Documentation
+        entry: scripts/check-package-docs.sh
+        language: script
+        files: '\.go$'
+        exclude: '_test\.go$'
+        
+      # Verify all exported functions have comments
+      - id: check-function-docs
+        name: Check Function Documentation
+        entry: scripts/check-function-docs.sh
+        language: script
+        files: '\.go$'
+        exclude: '_test\.go$'
+        
+      # Check for TODO/FIXME without issue references
+      - id: check-todos
+        name: Check TODO Comments
+        entry: scripts/check-todos.sh
+        language: script
+        files: '\.go$'
+
+  # Markdown and documentation formatting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      # Fix trailing whitespace
+      - id: trailing-whitespace
+        types: [markdown]
+        
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+        types: [markdown]
+        
+      # Check YAML syntax
+      - id: check-yaml
+        
+      # Check for large files
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  # Spell checking for documentation
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.5
+    hooks:
+      - id: codespell
+        args: [--write-changes]
+        types_or: [markdown, rst, text]

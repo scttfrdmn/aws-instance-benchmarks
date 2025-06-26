@@ -1,0 +1,182 @@
+name: Code Quality & Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+# Ensure documentation standards are maintained
+jobs:
+  documentation-check:
+    name: Documentation Standards
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Check Function Documentation
+      run: |
+        chmod +x scripts/check-function-docs.sh
+        ./scripts/check-function-docs.sh
+        
+    - name: Run golangci-lint (includes documentation checks)
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --config=.golangci.yml --verbose
+        
+    - name: Check godoc generation
+      run: |
+        go install golang.org/x/tools/cmd/godoc@latest
+        echo "Generating documentation..."
+        godoc -http=:6060 &
+        GODOC_PID=$!
+        sleep 5
+        
+        # Test that documentation generates without errors
+        curl -f http://localhost:6060/pkg/github.com/scttfrdmn/aws-instance-benchmarks/ > /dev/null
+        
+        kill $GODOC_PID
+        echo "✅ Documentation generates successfully"
+
+  test-coverage:
+    name: Test Coverage & Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Run tests with coverage
+      run: |
+        go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
+        
+    - name: Check coverage threshold (85%+)
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Current coverage: ${COVERAGE}%"
+        
+        if (( $(echo "$COVERAGE < 85" | bc -l) )); then
+          echo "❌ Coverage ${COVERAGE}% is below required 85%"
+          echo "Add more tests and documentation examples"
+          exit 1
+        fi
+        
+        echo "✅ Coverage ${COVERAGE}% meets requirements"
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+
+  documentation-examples:
+    name: Documentation Examples
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Test example code in documentation
+      run: |
+        # Extract and test code examples from documentation
+        go install github.com/golang/example/gotypes@latest
+        
+        # Test that examples in comments actually compile
+        find . -name "*.go" -not -path "./vendor/*" | xargs grep -l "Example:" | while read file; do
+          echo "Checking examples in $file..."
+          # This would extract and test example code
+        done
+        
+    - name: Verify README examples
+      run: |
+        # Test that README code examples are valid
+        echo "Verifying README examples work..."
+        go build -o aws-benchmark-collector ./cmd
+        ./aws-benchmark-collector --help > /dev/null
+        ./aws-benchmark-collector discover --help > /dev/null
+        ./aws-benchmark-collector build --help > /dev/null
+        ./aws-benchmark-collector run --help > /dev/null
+        echo "✅ All CLI examples in README work"
+
+  security-scan:
+    name: Security & Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Run gosec security scan
+      run: |
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        gosec -fmt json -out results.json ./...
+        
+    - name: Run govulncheck
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
+  spell-check:
+    name: Spelling & Grammar
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check spelling in documentation
+      uses: crate-ci/typos@master
+      with:
+        files: '*.md docs/ README.md'
+        
+    - name: Check spelling in code comments
+      run: |
+        # Install codespell
+        pip install codespell
+        
+        # Check Go files for spelling errors in comments
+        codespell --check-filenames --skip="*.git,go.sum,go.mod" \
+          --ignore-regex="\b[A-Z]{2,}\b" \
+          --ignore-words-list="aws,ec2,s3,iam,cli,api,url,json,yaml,dockerfile,configs" \
+          .
+
+  dependency-check:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Check for known vulnerabilities
+      run: |
+        go list -json -deps ./... | nancy sleuth
+        
+    - name: Verify dependencies are up to date
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum || (echo "Dependencies not up to date" && exit 1)

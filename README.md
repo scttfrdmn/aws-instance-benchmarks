@@ -50,7 +50,37 @@ data/
 
 ## 🚀 Quick Start
 
-### Using the Data
+### **CLI Tool Installation**
+```bash
+# Clone and build
+git clone https://github.com/scttfrdmn/aws-instance-benchmarks.git
+cd aws-instance-benchmarks
+go build -o aws-benchmark-collector ./cmd
+
+# Verify installation
+./aws-benchmark-collector --help
+```
+
+### **Basic Usage**
+```bash
+# Discover AWS instance types and generate architecture mappings
+./aws-benchmark-collector discover --update-containers
+
+# Build optimized benchmark containers
+./aws-benchmark-collector build \
+    --architectures intel-icelake,amd-zen4,graviton3 \
+    --benchmarks stream
+
+# Run benchmarks on AWS instances (requires AWS setup)
+./aws-benchmark-collector run \
+    --instance-types m7i.large,c7g.large \
+    --region us-east-1 \
+    --key-pair my-key-pair \
+    --security-group sg-xxxxxxxxx \
+    --subnet subnet-xxxxxxxxx
+```
+
+### **Using the Data**
 ```javascript
 // Fetch latest benchmark data
 const response = await fetch('https://raw.githubusercontent.com/scttfrdmn/aws-instance-benchmarks/main/data/processed/latest/memory-benchmarks.json')
@@ -60,7 +90,40 @@ const memoryData = await response.json()
 const bestMemory = memoryData.rankings.triad_bandwidth.slice(0, 10)
 ```
 
-### Integration Examples
+### **Data Analysis & Processing**
+```go
+// Advanced data aggregation and analysis
+package main
+
+import (
+    "context"
+    "github.com/scttfrdmn/aws-instance-benchmarks/pkg/analysis"
+)
+
+func main() {
+    // Configure multi-dimensional analysis
+    config := analysis.AggregationConfig{
+        GroupingDimensions: []string{"instance_family", "region"},
+        StatisticalConfig: analysis.StatisticalConfig{
+            ConfidenceLevel: 0.95,
+            MinSampleSize:   10,
+        },
+        QualityThreshold: 0.8,
+    }
+    
+    aggregator, _ := analysis.NewDataAggregator(config, dataSource)
+    results, _ := aggregator.ProcessBenchmarkData(context.Background())
+    
+    // Access aggregated performance metrics
+    for _, result := range results {
+        fmt.Printf("Instance Family: %s\n", result.GroupKey.Dimensions["instance_family"])
+        fmt.Printf("STREAM Triad: %.2f GB/s\n", result.PerformanceMetrics.StreamMetrics.TriadBandwidth.Mean)
+        fmt.Printf("Quality Score: %.2f\n", result.QualityAssessment.OverallScore)
+    }
+}
+```
+
+### **Integration Examples**
 - **ComputeCompass**: Performance-aware instance recommendations
 - **Research Tools**: Data-driven instance selection
 - **Cost Optimization**: Price/performance analysis
@@ -73,6 +136,24 @@ const bestMemory = memoryData.rankings.triad_bandwidth.slice(0, 10)
 - **Instance Sizes**: nano to 96xlarge across all families
 - **Regions**: Multi-region validation for consistency
 
+## 🏗️ Architecture & Components
+
+### Core Packages
+- **`pkg/discovery`**: AWS instance type discovery and architecture mapping
+- **`pkg/benchmarks`**: STREAM and HPL benchmark execution with statistical validation
+- **`pkg/analysis`**: Multi-dimensional data aggregation and performance analysis
+- **`pkg/storage`**: S3-based result persistence with compression and organization
+- **`pkg/monitoring`**: CloudWatch metrics integration for observability
+- **`pkg/aws`**: EC2 orchestration with quota management and spot instance support
+- **`pkg/containers`**: Docker container build framework with architecture optimization
+
+### Key Features
+- **Statistical Rigor**: Confidence intervals, outlier detection, quality assessment
+- **NUMA Awareness**: Multi-socket system optimization and memory affinity
+- **Architecture Optimization**: Intel MKL, AMD BLIS, and GCC optimization pipelines  
+- **Real-time Monitoring**: CloudWatch integration with custom metrics and alerting
+- **Quality Control**: Automated validation with statistical confidence requirements
+
 ## 🤝 Contributing
 
 We welcome community contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
@@ -82,13 +163,23 @@ We welcome community contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Tool improvements
 
 ### Running Benchmarks
-```bash
-# Clone the repository
-git clone https://github.com/scttfrdmn/aws-instance-benchmarks.git
+See our comprehensive [AWS Setup Guide](docs/AWS_SETUP.md) for detailed configuration instructions.
 
-# Deploy benchmark suite
-cd tools/deployment
-./deploy-benchmarks.sh --family m7i --sizes "large,xlarge,2xlarge"
+```bash
+# Prerequisites: AWS CLI v2 configured with 'aws' profile
+aws configure --profile aws
+
+# Build the CLI tool
+go build -o aws-benchmark-collector ./cmd
+
+# Run benchmarks (requires AWS infrastructure setup)
+./aws-benchmark-collector run \
+    --instance-types m7i.large,m7i.xlarge \
+    --region us-east-1 \
+    --key-pair my-key-pair \
+    --security-group sg-xxxxxxxxx \
+    --subnet subnet-xxxxxxxxx \
+    --benchmarks stream
 ```
 
 ## 📄 License
