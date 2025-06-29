@@ -68,40 +68,46 @@ go build -o cloud-benchmark-collector ./cmd
 ./cloud-benchmark-collector --help
 ```
 
-### **Basic Usage**
+### **Configuration-Based Usage (Recommended)**
+```bash
+# 1. Discover and configure AWS infrastructure (one-time setup)
+./cloud-benchmark-collector discover infrastructure --region us-west-2 --profile aws
+
+# 2. Run benchmarks using configuration
+./cloud-benchmark-collector run \
+    --config configs/aws-infrastructure.json \
+    --environment us-west-2
+
+# 3. Override specific settings from config
+./cloud-benchmark-collector run \
+    --config configs/aws-infrastructure.json \
+    --environment us-west-2 \
+    --instance-types m7i.large,c7g.large \
+    --iterations 3
+```
+
+### **Manual Configuration (Legacy)**
 ```bash
 # Discover AWS instance types and generate architecture mappings
-./aws-benchmark-collector discover --update-containers
+./cloud-benchmark-collector discover instances --update-containers
 
 # Build optimized benchmark containers
-./aws-benchmark-collector build \
+./cloud-benchmark-collector build \
     --architectures intel-icelake,amd-zen4,graviton3 \
     --benchmarks stream
 
-# Run comprehensive benchmarks across multiple instance types
-./aws-benchmark-collector run \
+# Run comprehensive benchmarks across multiple instance types (manual config)
+./cloud-benchmark-collector run \
     --instance-types m7i.large,m7a.large,m7g.large,c7i.large,c7a.large,c7g.large \
-    --region us-east-1 \
+    --region us-west-2 \
     --key-pair my-key-pair \
     --security-group sg-xxxxxxxxx \
     --subnet subnet-xxxxxxxxx \
     --s3-bucket my-benchmark-bucket \
     --benchmarks stream,hpl \
     --iterations 3 \
-    --max-concurrency 8
-
-# Run benchmarks with comprehensive system profiling
-./aws-benchmark-collector run \
-    --instance-types m7i.large,c7g.large,r7a.large \
-    --region us-east-1 \
-    --key-pair my-key-pair \
-    --security-group sg-xxxxxxxxx \
-    --subnet subnet-xxxxxxxxx \
-    --s3-bucket my-benchmark-bucket \
-    --benchmarks stream,hpl \
-    --enable-system-profiling \
-    --iterations 5 \
-    --max-concurrency 3
+    --max-concurrency 8 \
+    --enable-system-profiling
 
 # Schedule systematic weekly benchmark execution
 ./aws-benchmark-collector schedule weekly \
@@ -192,6 +198,55 @@ func main() {
 - **Research Tools**: Data-driven instance selection
 - **Cost Optimization**: Price/performance analysis
 - **Academic Research**: HPC cloud computing studies
+
+## 🔧 Infrastructure Configuration
+
+### **Configuration File System**
+The project uses JSON configuration files to eliminate trial-and-error with AWS infrastructure setup:
+
+```json
+{
+  "environments": {
+    "us-west-2": {
+      "profile": "aws",
+      "region": "us-west-2", 
+      "vpc": {"vpc_id": "vpc-e7e2999f", "name": "default"},
+      "networking": {
+        "subnet_id": "subnet-0528a0d8c3da5acfb",
+        "availability_zone": "us-west-2d",
+        "security_group_id": "sg-5059b179"
+      },
+      "compute": {"key_pair_name": "scofri"},
+      "storage": {"s3_bucket": "aws-instance-benchmarks-us-west-2-1751232301"}
+    }
+  },
+  "benchmark_defaults": {
+    "enable_system_profiling": true,
+    "instance_types": ["m7i.large", "c7g.large", "r7a.large"],
+    "benchmarks": ["stream"]
+  }
+}
+```
+
+### **Infrastructure Discovery Commands**
+```bash
+# Discover infrastructure for multiple regions
+./cloud-benchmark-collector discover infrastructure --region us-west-2 --profile aws
+./cloud-benchmark-collector discover infrastructure --region us-east-1 --profile aws
+
+# View discovered configuration without saving
+./cloud-benchmark-collector discover infrastructure --region eu-west-1 --dry-run
+
+# Use custom config file location
+./cloud-benchmark-collector discover infrastructure --config custom-config.json
+```
+
+### **Configuration Benefits**
+- **Zero Trial-and-Error**: Automatically discovers VPC, subnets, security groups, key pairs
+- **Multi-Region Support**: Easy switching between AWS regions with region-specific configs
+- **Reproducible Builds**: Version-controlled infrastructure configuration
+- **Override Flexibility**: CLI flags can override config file values
+- **Team Collaboration**: Shared infrastructure configuration across team members
 
 ## 📈 Comprehensive Testing Coverage
 
