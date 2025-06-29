@@ -18,11 +18,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+
+	awspkg "github.com/scttfrdmn/aws-instance-benchmarks/pkg/aws"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/containers"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/discovery"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/monitoring"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/pricing"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/scheduler"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/schema"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/storage"
 	"github.com/spf13/cobra"
@@ -41,7 +49,7 @@ type benchmarkResult struct {
 	benchmarkSuite string
 	iteration      int
 	success        bool
-	result         *aws.InstanceResult
+	result         *awspkg.InstanceResult
 	metrics        monitoring.BenchmarkMetrics
 }
 
@@ -195,6 +203,241 @@ func (dv *DataValidator) ValidateStatistics() (StatisticalValidationResults, err
 	}, nil
 }
 
+// Infrastructure configuration structures
+type InfrastructureConfig struct {
+	Environments       map[string]*EnvironmentConfig `json:"environments"`
+	BenchmarkDefaults *BenchmarkDefaults            `json:"benchmark_defaults"`
+}
+
+type EnvironmentConfig struct {
+	Profile    string              `json:"profile"`
+	Region     string              `json:"region"`
+	VPC        *VPCConfig          `json:"vpc"`
+	Networking *NetworkingConfig   `json:"networking"`
+	Compute    *ComputeConfig      `json:"compute"`
+	Storage    *StorageConfig      `json:"storage"`
+	Monitoring *MonitoringConfig   `json:"monitoring"`
+}
+
+type VPCConfig struct {
+	VPCID string `json:"vpc_id"`
+	Name  string `json:"name"`
+}
+
+type NetworkingConfig struct {
+	SubnetID         string `json:"subnet_id"`
+	AvailabilityZone string `json:"availability_zone"`
+	SecurityGroupID  string `json:"security_group_id"`
+}
+
+type ComputeConfig struct {
+	KeyPairName     string `json:"key_pair_name"`
+	InstanceProfile string `json:"instance_profile"`
+}
+
+type StorageConfig struct {
+	S3Bucket string `json:"s3_bucket"`
+	S3Region string `json:"s3_region"`
+}
+
+type MonitoringConfig struct {
+	CloudWatchEnabled   bool   `json:"cloudwatch_enabled"`
+	CloudWatchNamespace string `json:"cloudwatch_namespace"`
+}
+
+type BenchmarkDefaults struct {
+	MaxConcurrency         int      `json:"max_concurrency"`
+	Iterations             int      `json:"iterations"`
+	TimeoutMinutes         int      `json:"timeout_minutes"`
+	EnableSystemProfiling  bool     `json:"enable_system_profiling"`
+	SkipQuotaCheck         bool     `json:"skip_quota_check"`
+	Benchmarks             []string `json:"benchmarks"`
+	InstanceTypes          []string `json:"instance_types"`
+}
+
+func runDiscoverInfrastructure(cmd *cobra.Command, args []string) error {
+	infraRegion, _ := cmd.Flags().GetString("region")
+	infraProfile, _ := cmd.Flags().GetString("profile") 
+	configFile, _ := cmd.Flags().GetString("config")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+	fmt.Printf("🔍 Discovering AWS infrastructure in %s (profile: %s)...\n", infraRegion, infraProfile)
+
+	// Set AWS profile for this session
+	os.Setenv("AWS_PROFILE", infraProfile)
+
+	ctx := context.Background()
+	
+	// Load AWS config
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(infraRegion),
+		config.WithSharedConfigProfile(infraProfile),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	ec2Client := ec2.NewFromConfig(cfg)
+
+	// Discover VPC (use default VPC)
+	fmt.Printf("📡 Discovering VPC...\n")
+	vpcResp, err := ec2Client.DescribeVpcs(ctx, &ec2.DescribeVpcsInput{
+		Filters: []types.Filter{
+			{Name: aws.String("is-default"), Values: []string{"true"}},
+		},
+	})
+	if err != nil || len(vpcResp.Vpcs) == 0 {
+		return fmt.Errorf("failed to find default VPC: %w", err)
+	}
+	vpcID := *vpcResp.Vpcs[0].VpcId
+	fmt.Printf("   ✅ Found default VPC: %s\n", vpcID)
+
+	// Discover suitable subnet (try multiple AZs)
+	fmt.Printf("📡 Discovering subnet...\n")
+	azSuffixes := []string{"a", "b", "c", "d"}
+	var subnetID, availabilityZone string
+	
+	for _, suffix := range azSuffixes {
+		targetAZ := infraRegion + suffix
+		subnetResp, err := ec2Client.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+			Filters: []types.Filter{
+				{Name: aws.String("vpc-id"), Values: []string{vpcID}},
+				{Name: aws.String("availability-zone"), Values: []string{targetAZ}},
+				{Name: aws.String("state"), Values: []string{"available"}},
+			},
+		})
+		if err == nil && len(subnetResp.Subnets) > 0 {
+			subnetID = *subnetResp.Subnets[0].SubnetId
+			availabilityZone = *subnetResp.Subnets[0].AvailabilityZone
+			break
+		}
+	}
+	
+	if subnetID == "" {
+		return fmt.Errorf("failed to find suitable subnet in any AZ")
+	}
+	fmt.Printf("   ✅ Found subnet: %s (%s)\n", subnetID, availabilityZone)
+
+	// Discover default security group
+	fmt.Printf("📡 Discovering security group...\n")
+	sgResp, err := ec2Client.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{
+		Filters: []types.Filter{
+			{Name: aws.String("vpc-id"), Values: []string{vpcID}},
+			{Name: aws.String("group-name"), Values: []string{"default"}},
+		},
+	})
+	if err != nil || len(sgResp.SecurityGroups) == 0 {
+		return fmt.Errorf("failed to find default security group: %w", err)
+	}
+	securityGroupID := *sgResp.SecurityGroups[0].GroupId
+	fmt.Printf("   ✅ Found security group: %s\n", securityGroupID)
+
+	// Discover key pair (first available)
+	fmt.Printf("📡 Discovering key pair...\n")
+	keyResp, err := ec2Client.DescribeKeyPairs(ctx, &ec2.DescribeKeyPairsInput{})
+	if err != nil || len(keyResp.KeyPairs) == 0 {
+		return fmt.Errorf("failed to find any key pairs: %w", err)
+	}
+	keyPairName := *keyResp.KeyPairs[0].KeyName
+	fmt.Printf("   ✅ Found key pair: %s\n", keyPairName)
+
+	// Create S3 bucket for benchmarks
+	fmt.Printf("📡 Creating S3 bucket...\n")
+	bucketName := fmt.Sprintf("aws-instance-benchmarks-%s-%d", infraRegion, time.Now().Unix())
+	
+	s3Client := s3.NewFromConfig(cfg)
+	_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+		CreateBucketConfiguration: &s3types.CreateBucketConfiguration{
+			LocationConstraint: s3types.BucketLocationConstraint(infraRegion),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create S3 bucket: %w", err)
+	}
+	fmt.Printf("   ✅ Created S3 bucket: %s\n", bucketName)
+
+	// Build configuration
+	envConfig := &EnvironmentConfig{
+		Profile: infraProfile,
+		Region:  infraRegion,
+		VPC: &VPCConfig{
+			VPCID: vpcID,
+			Name:  "default",
+		},
+		Networking: &NetworkingConfig{
+			SubnetID:         subnetID,
+			AvailabilityZone: availabilityZone,
+			SecurityGroupID:  securityGroupID,
+		},
+		Compute: &ComputeConfig{
+			KeyPairName:     keyPairName,
+			InstanceProfile: "",
+		},
+		Storage: &StorageConfig{
+			S3Bucket: bucketName,
+			S3Region: infraRegion,
+		},
+		Monitoring: &MonitoringConfig{
+			CloudWatchEnabled:   true,
+			CloudWatchNamespace: "AWS/InstanceBenchmarks",
+		},
+	}
+
+	// Load existing config or create new
+	var infraConfig *InfrastructureConfig
+	if configData, err := os.ReadFile(configFile); err == nil {
+		infraConfig = &InfrastructureConfig{}
+		if err := json.Unmarshal(configData, infraConfig); err != nil {
+			return fmt.Errorf("failed to parse existing config: %w", err)
+		}
+	} else {
+		infraConfig = &InfrastructureConfig{
+			Environments: make(map[string]*EnvironmentConfig),
+			BenchmarkDefaults: &BenchmarkDefaults{
+				MaxConcurrency:        5,
+				Iterations:            1,
+				TimeoutMinutes:        30,
+				EnableSystemProfiling: true,
+				SkipQuotaCheck:        false,
+				Benchmarks:            []string{"stream"},
+				InstanceTypes:         []string{"m7i.large", "c7g.large", "r7a.large"},
+			},
+		}
+	}
+
+	// Update with discovered configuration
+	infraConfig.Environments[infraRegion] = envConfig
+
+	if dryRun {
+		fmt.Printf("\n📋 Discovered configuration (dry-run):\n")
+		configJSON, _ := json.MarshalIndent(envConfig, "", "  ")
+		fmt.Printf("%s\n", configJSON)
+		return nil
+	}
+
+	// Ensure config directory exists
+	if err := os.MkdirAll(filepath.Dir(configFile), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Save configuration
+	configJSON, err := json.MarshalIndent(infraConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configFile, configJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	fmt.Printf("\n✅ Infrastructure configuration saved to: %s\n", configFile)
+	fmt.Printf("\n🚀 Ready to run benchmarks with:\n")
+	fmt.Printf("   ./cloud-benchmark-collector run --config %s --environment %s\n", configFile, infraRegion)
+
+	return nil
+}
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "cloud-benchmark-collector",
@@ -213,15 +456,38 @@ capturing provider-specific optimizations and system characteristics.`,
 
 	var discoverCmd = &cobra.Command{
 		Use:   "discover",
+		Short: "Discover AWS instance types and infrastructure",
+		Long:  "Discover AWS instance types, architectures, and infrastructure configuration",
+	}
+
+	var discoverInstancesCmd = &cobra.Command{
+		Use:   "instances",
 		Short: "Discover AWS instance types and their architectures",
 		RunE:  runDiscover,
 	}
 
+	var discoverInfraCmd = &cobra.Command{
+		Use:   "infrastructure",
+		Short: "Discover and configure AWS infrastructure settings",
+		RunE:  runDiscoverInfrastructure,
+	}
+
 	var updateContainers bool
 	var dryRun bool
+	var infraRegion string
+	var infraProfile string
+	var configFile string
 
-	discoverCmd.Flags().BoolVar(&updateContainers, "update-containers", false, "Update container architecture mappings")
-	discoverCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
+	discoverInstancesCmd.Flags().BoolVar(&updateContainers, "update-containers", false, "Update container architecture mappings")
+	discoverInstancesCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
+
+	discoverInfraCmd.Flags().StringVar(&infraRegion, "region", "us-west-2", "AWS region to discover infrastructure for")
+	discoverInfraCmd.Flags().StringVar(&infraProfile, "profile", "aws", "AWS profile to use for discovery")
+	discoverInfraCmd.Flags().StringVar(&configFile, "config", "configs/aws-infrastructure.json", "Path to infrastructure config file")
+	discoverInfraCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show discovered configuration without saving")
+
+	discoverCmd.AddCommand(discoverInstancesCmd)
+	discoverCmd.AddCommand(discoverInfraCmd)
 
 	var buildCmd = &cobra.Command{
 		Use:   "build",
@@ -258,6 +524,8 @@ capturing provider-specific optimizations and system characteristics.`,
 	var iterations int
 	var s3Bucket string
 	var enableSystemProfiling bool
+	var configFileRun string
+	var environment string
 
 	var runProvider string
 	runCmd.Flags().StringVar(&runProvider, "provider", "aws", "Cloud provider (aws, gcp, azure, oci)")
@@ -273,6 +541,8 @@ capturing provider-specific optimizations and system characteristics.`,
 	runCmd.Flags().StringVar(&s3Bucket, "storage-bucket", "", "Cloud storage bucket for storing results")
 	runCmd.Flags().StringVar(&s3Bucket, "s3-bucket", "", "(Deprecated) Use --storage-bucket instead")
 	runCmd.Flags().BoolVar(&enableSystemProfiling, "enable-system-profiling", false, "Enable comprehensive system topology discovery and profiling")
+	runCmd.Flags().StringVar(&configFileRun, "config", "", "Path to infrastructure config file (overrides individual flags)")
+	runCmd.Flags().StringVar(&environment, "environment", "", "Environment name from config file (e.g., us-west-2)")
 
 	var schemaCmd = &cobra.Command{
 		Use:   "schema",
@@ -447,7 +717,7 @@ Example usage:
 		RunE:  runAggregateProcessing,
 	}
 
-	var validateCmd = &cobra.Command{
+	var validateDataCmd = &cobra.Command{
 		Use:   "validate",
 		Short: "Validate statistical data quality in Git repository",
 		RunE:  runDataValidation,
@@ -487,13 +757,13 @@ Example usage:
 	var validateSchema bool
 	var reportPath string
 
-	validateCmd.Flags().BoolVar(&validateStatistical, "statistical", true, "Perform statistical validation")
-	validateCmd.Flags().BoolVar(&validateSchema, "schema", true, "Perform schema validation")
-	validateCmd.Flags().StringVar(&reportPath, "report", "validation-report.json", "Path for validation report")
+	validateDataCmd.Flags().BoolVar(&validateStatistical, "statistical", true, "Perform statistical validation")
+	validateDataCmd.Flags().BoolVar(&validateSchema, "schema", true, "Perform schema validation")
+	validateDataCmd.Flags().StringVar(&reportPath, "report", "validation-report.json", "Path for validation report")
 
 	processCmd.AddCommand(dailyCmd)
 	processCmd.AddCommand(aggregateCmd)
-	processCmd.AddCommand(validateCmd)
+	processCmd.AddCommand(validateDataCmd)
 
 	rootCmd.AddCommand(discoverCmd)
 	rootCmd.AddCommand(buildCmd)
@@ -607,16 +877,99 @@ func getBaseImage(architecture string) string {
 func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	ctx := context.Background()
 	
-	instanceTypes, _ := cmd.Flags().GetStringSlice("instance-types")
-	region, _ := cmd.Flags().GetString("region")
-	keyPair, _ := cmd.Flags().GetString("key-pair")
-	securityGroup, _ := cmd.Flags().GetString("security-group")
-	subnet, _ := cmd.Flags().GetString("subnet")
-	skipQuota, _ := cmd.Flags().GetBool("skip-quota-check")
-	benchmarkSuites, _ := cmd.Flags().GetStringSlice("benchmarks")
-	maxConcurrency, _ := cmd.Flags().GetInt("max-concurrency")
-	iterations, _ := cmd.Flags().GetInt("iterations")
-	s3Bucket, _ := cmd.Flags().GetString("s3-bucket")
+	// Check if config file is specified
+	configFileRun, _ := cmd.Flags().GetString("config")
+	environment, _ := cmd.Flags().GetString("environment")
+	
+	var instanceTypes []string
+	var region string
+	var keyPair string
+	var securityGroup string
+	var subnet string
+	var skipQuota bool
+	var benchmarkSuites []string
+	var maxConcurrency int
+	var iterations int
+	var s3Bucket string
+	var enableSystemProfiling bool
+	
+	if configFileRun != "" {
+		// Load from config file
+		if environment == "" {
+			return fmt.Errorf("--environment is required when using --config")
+		}
+		
+		fmt.Printf("📋 Loading configuration from %s (environment: %s)...\n", configFileRun, environment)
+		
+		configData, err := os.ReadFile(configFileRun)
+		if err != nil {
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+		
+		var infraConfig InfrastructureConfig
+		if err := json.Unmarshal(configData, &infraConfig); err != nil {
+			return fmt.Errorf("failed to parse config file: %w", err)
+		}
+		
+		envConfig, exists := infraConfig.Environments[environment]
+		if !exists {
+			return fmt.Errorf("environment '%s' not found in config file", environment)
+		}
+		
+		// Set AWS profile from config
+		os.Setenv("AWS_PROFILE", envConfig.Profile)
+		
+		// Load values from config
+		region = envConfig.Region
+		keyPair = envConfig.Compute.KeyPairName
+		securityGroup = envConfig.Networking.SecurityGroupID
+		subnet = envConfig.Networking.SubnetID
+		s3Bucket = envConfig.Storage.S3Bucket
+		
+		// Load defaults
+		if infraConfig.BenchmarkDefaults != nil {
+			instanceTypes = infraConfig.BenchmarkDefaults.InstanceTypes
+			benchmarkSuites = infraConfig.BenchmarkDefaults.Benchmarks
+			maxConcurrency = infraConfig.BenchmarkDefaults.MaxConcurrency
+			iterations = infraConfig.BenchmarkDefaults.Iterations
+			enableSystemProfiling = infraConfig.BenchmarkDefaults.EnableSystemProfiling
+			skipQuota = infraConfig.BenchmarkDefaults.SkipQuotaCheck
+		}
+		
+		// Allow CLI flags to override config values
+		if flagValue, _ := cmd.Flags().GetStringSlice("instance-types"); cmd.Flags().Changed("instance-types") {
+			instanceTypes = flagValue
+		}
+		if flagValue, _ := cmd.Flags().GetStringSlice("benchmarks"); cmd.Flags().Changed("benchmarks") {
+			benchmarkSuites = flagValue
+		}
+		if flagValue, _ := cmd.Flags().GetInt("max-concurrency"); cmd.Flags().Changed("max-concurrency") {
+			maxConcurrency = flagValue
+		}
+		if flagValue, _ := cmd.Flags().GetInt("iterations"); cmd.Flags().Changed("iterations") {
+			iterations = flagValue
+		}
+		if flagValue, _ := cmd.Flags().GetBool("enable-system-profiling"); cmd.Flags().Changed("enable-system-profiling") {
+			enableSystemProfiling = flagValue
+		}
+		
+		fmt.Printf("   ✅ Region: %s, VPC: %s, Subnet: %s\n", region, envConfig.VPC.VPCID, subnet)
+		fmt.Printf("   ✅ S3 Bucket: %s, Key Pair: %s\n", s3Bucket, keyPair)
+		
+	} else {
+		// Load from command-line flags (existing behavior)
+		instanceTypes, _ = cmd.Flags().GetStringSlice("instance-types")
+		region, _ = cmd.Flags().GetString("region")
+		keyPair, _ = cmd.Flags().GetString("key-pair")
+		securityGroup, _ = cmd.Flags().GetString("security-group")
+		subnet, _ = cmd.Flags().GetString("subnet")
+		skipQuota, _ = cmd.Flags().GetBool("skip-quota-check")
+		benchmarkSuites, _ = cmd.Flags().GetStringSlice("benchmarks")
+		maxConcurrency, _ = cmd.Flags().GetInt("max-concurrency")
+		iterations, _ = cmd.Flags().GetInt("iterations")
+		s3Bucket, _ = cmd.Flags().GetString("s3-bucket")
+		enableSystemProfiling, _ = cmd.Flags().GetBool("enable-system-profiling")
+	}
 
 	// Validate required parameters
 	if keyPair == "" {
@@ -629,7 +982,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 		return ErrSubnetRequired
 	}
 
-	orchestrator, err := aws.NewOrchestrator(region)
+	orchestrator, err := awspkg.NewOrchestrator(region)
 	if err != nil {
 		return fmt.Errorf("failed to create orchestrator: %w", err)
 	}
@@ -680,7 +1033,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 		instanceType   string
 		benchmarkSuite string
 		iteration      int
-		config         aws.BenchmarkConfig
+		config         awspkg.BenchmarkConfig
 	}
 
 	var jobs []benchmarkJob
@@ -690,7 +1043,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 				containerImage := fmt.Sprintf("%s/%s:%s-%s", registry, namespace, benchmarkSuite, 
 					getContainerTagForInstance(instanceType))
 
-				config := aws.BenchmarkConfig{
+				config := awspkg.BenchmarkConfig{
 					InstanceType:    instanceType,
 					ContainerImage:  containerImage,
 					BenchmarkSuite:  benchmarkSuite,
@@ -746,7 +1099,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 			}
 			
 			benchmarkStartTime := time.Now()
-			var result *aws.InstanceResult
+			var result *awspkg.InstanceResult
 			var err error
 			
 			// Use system profiling if enabled
@@ -774,7 +1127,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 				resultsMutex.Unlock()
 				
 				// Categorize error for metrics
-				if quotaErr, ok := err.(*aws.QuotaError); ok {
+				if quotaErr, ok := err.(*awspkg.QuotaError); ok {
 					benchmarkMetrics.ErrorCategory = "quota"
 					fmt.Printf("⚠️  Skipped %s due to quota: %s\n", j.instanceType, quotaErr.Message)
 				} else {
@@ -961,7 +1314,7 @@ func getContainerTagForInstance(instanceType string) string {
 	return "intel-skylake" // Default fallback
 }
 
-func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *aws.InstanceResult, benchmarkSuite string, region string) error {
+func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *awspkg.InstanceResult, benchmarkSuite string, region string) error {
 	// Create comprehensive result structure for JSON storage following ComputeCompass integration format
 	resultData := map[string]interface{}{
 		"schema_version": "1.0.0",
@@ -2306,7 +2659,7 @@ func runWeeklySchedule(cmd *cobra.Command, _ []string) error {
 	}
 	
 	// Initialize AWS orchestrator and storage
-	orchestrator, err := aws.NewOrchestrator(region)
+	orchestrator, err := awspkg.NewOrchestrator(region)
 	if err != nil {
 		return fmt.Errorf("failed to create orchestrator: %w", err)
 	}
@@ -2474,7 +2827,7 @@ func displayPlanSummary(plan *scheduler.WeeklyPlan, sizeWaves bool) {
 	fmt.Printf("\n⏰ Time Window Schedule:\n")
 	for i, window := range plan.TimeWindows {
 		jobCount := 0
-		for _, job := range plan.Jobs {
+		for range plan.Jobs {
 			// This is a simplified count - in reality would need proper window assignment
 			if i < len(plan.Jobs)/len(plan.TimeWindows) {
 				jobCount++
@@ -2487,7 +2840,7 @@ func displayPlanSummary(plan *scheduler.WeeklyPlan, sizeWaves bool) {
 
 // ScheduledBenchmarkExecutor handles benchmark execution for scheduled jobs
 type ScheduledBenchmarkExecutor struct {
-	orchestrator  *aws.Orchestrator
+	orchestrator  *awspkg.Orchestrator
 	s3Storage     *storage.S3Storage
 	keyPair       string
 	securityGroup string
@@ -2521,7 +2874,7 @@ type CustomBenchmarkExecutor struct {
 // ExecuteBenchmark runs a single benchmark job using existing orchestrator
 func (ce *CustomBenchmarkExecutor) ExecuteBenchmark(ctx context.Context, job *scheduler.BenchmarkJob) error {
 	// Convert scheduler job to our BenchmarkConfig format
-	config := aws.BenchmarkConfig{
+	config := awspkg.BenchmarkConfig{
 		InstanceType:    job.InstanceType,
 		ContainerImage:  fmt.Sprintf("public.ecr.aws/aws-benchmarks/%s:%s", 
 			job.BenchmarkSuite, getContainerTagForInstance(job.InstanceType)),

@@ -1,0 +1,69 @@
+{
+  "environments": {
+    "us-east-1": {
+      "profile": "aws",
+      "region": "us-east-1",
+      "vpc": {
+        "vpc_id": "",
+        "name": "default"
+      },
+      "networking": {
+        "subnet_id": "",
+        "availability_zone": "us-east-1c",
+        "security_group_id": ""
+      },
+      "compute": {
+        "key_pair_name": "",
+        "instance_profile": ""
+      },
+      "storage": {
+        "s3_bucket": "",
+        "s3_region": "us-east-1"
+      },
+      "monitoring": {
+        "cloudwatch_enabled": true,
+        "cloudwatch_namespace": "AWS/InstanceBenchmarks"
+      }
+    },
+    "us-west-2": {
+      "profile": "aws",
+      "region": "us-west-2",
+      "vpc": {
+        "vpc_id": "vpc-e7e2999f",
+        "name": "default"
+      },
+      "networking": {
+        "subnet_id": "subnet-0528a0d8c3da5acfb",
+        "availability_zone": "us-west-2d",
+        "security_group_id": "sg-5059b179"
+      },
+      "compute": {
+        "key_pair_name": "scofri",
+        "instance_profile": ""
+      },
+      "storage": {
+        "s3_bucket": "aws-instance-benchmarks-us-west-2-1751232301",
+        "s3_region": "us-west-2"
+      },
+      "monitoring": {
+        "cloudwatch_enabled": true,
+        "cloudwatch_namespace": "AWS/InstanceBenchmarks"
+      }
+    }
+  },
+  "benchmark_defaults": {
+    "max_concurrency": 5,
+    "iterations": 1,
+    "timeout_minutes": 30,
+    "enable_system_profiling": true,
+    "skip_quota_check": false,
+    "benchmarks": [
+      "stream"
+    ],
+    "instance_types": [
+      "m7i.large",
+      "c7g.large",
+      "r7a.large"
+    ]
+  }
+}

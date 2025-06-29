@@ -5,10 +5,10 @@ package profiling
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -442,7 +442,7 @@ func (sp *SystemProfiler) profileVirtualization(ctx context.Context) (Virtualiza
 	details := VirtualizationDetails{}
 	
 	// Detect hypervisor and virtualization type
-	virtType, hypervisor := sp.detectVirtualization()
+	_, hypervisor := sp.detectVirtualization()
 	details.Hypervisor = hypervisor
 	
 	// Get CPU steal time from /proc/stat

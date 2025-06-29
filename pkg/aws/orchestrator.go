@@ -432,7 +432,7 @@ func (o *Orchestrator) RunBenchmarkWithProfiling(ctx context.Context, config Ben
 // runSystemProfiling executes comprehensive system topology discovery on the benchmark instance
 func (o *Orchestrator) runSystemProfiling(ctx context.Context, result *InstanceResult, config BenchmarkConfig) (*profiling.SystemTopology, error) {
 	// Create profiling script that will be executed on the instance
-	profilingScript := o.generateProfilingScript(config)
+	_ = o.generateProfilingScript(config) // TODO: Use this script for remote execution
 	
 	// Execute profiling via SSH or Systems Manager (SSM)
 	// For now, we'll use a simplified approach that integrates with the benchmark container
