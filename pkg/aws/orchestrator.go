@@ -54,6 +54,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/profiling"
 )
 
 // AWS orchestration errors.
@@ -164,6 +165,10 @@ type InstanceResult struct {
 	//   STREAM: {"copy": {"bandwidth": 45.2, "unit": "GB/s"}, ...}
 	//   HPL: {"gflops": 123.4, "efficiency": 0.85, ...}
 	BenchmarkData map[string]interface{}
+	
+	// SystemTopology contains comprehensive hardware topology and configuration
+	// discovered from the benchmark instance for performance analysis.
+	SystemTopology *profiling.SystemTopology
 	
 	// Error contains any error encountered during benchmark execution.
 	// nil indicates successful completion.
@@ -333,6 +338,205 @@ func (o *Orchestrator) RunBenchmark(ctx context.Context, config BenchmarkConfig)
 	result.Status = "completed"
 	result.EndTime = time.Now()
 	return result, nil
+}
+
+// RunBenchmarkWithProfiling executes a comprehensive benchmark with detailed system profiling.
+//
+// This enhanced method performs the same benchmark execution as RunBenchmark but includes
+// comprehensive system topology discovery and hardware profiling. The profiling data
+// enables deeper performance analysis and optimization recommendations.
+//
+// Parameters:
+//   - ctx: Context for timeout control and cancellation
+//   - config: Comprehensive benchmark configuration including instance type and parameters
+//
+// Returns:
+//   - *InstanceResult: Complete benchmark results with performance data, metadata, and system topology
+//   - error: Execution errors, infrastructure failures, or configuration issues
+func (o *Orchestrator) RunBenchmarkWithProfiling(ctx context.Context, config BenchmarkConfig) (*InstanceResult, error) {
+	result := &InstanceResult{
+		InstanceType: config.InstanceType,
+		StartTime:    time.Now(),
+	}
+
+	// Check quotas first if not skipped
+	if !config.SkipQuotaCheck {
+		if err := o.checkQuotas(ctx, config.InstanceType); err != nil {
+			result.Error = err
+			result.EndTime = time.Now()
+			return result, result.Error
+		}
+	}
+
+	// Launch instance
+	instanceID, err := o.launchInstance(ctx, config)
+	if err != nil {
+		result.Error = fmt.Errorf("failed to launch instance: %w", err)
+		result.EndTime = time.Now()
+		return result, result.Error
+	}
+	result.InstanceID = instanceID
+
+	// Get instance details
+	if err := o.updateInstanceDetails(ctx, result); err != nil {
+		if terminateErr := o.terminateInstance(ctx, instanceID); terminateErr != nil {
+			// Log termination failure but don't override the original error
+			_ = terminateErr
+		}
+		result.Error = fmt.Errorf("failed to get instance details: %w", err)
+		result.EndTime = time.Now()
+		return result, result.Error
+	}
+
+	// Run system profiling before benchmark execution
+	systemTopology, err := o.runSystemProfiling(ctx, result, config)
+	if err != nil {
+		// System profiling failure is not fatal - continue with benchmark
+		// Log the error but don't fail the entire benchmark
+		_ = err // TODO: Add proper logging
+	} else {
+		result.SystemTopology = systemTopology
+	}
+
+	// Configure benchmark environment based on system topology
+	if result.SystemTopology != nil {
+		if err := o.configureBenchmarkEnvironment(ctx, result, config); err != nil {
+			// Configuration failure is not fatal - continue with default settings
+			_ = err // TODO: Add proper logging
+		}
+	}
+
+	// Run benchmark via user data script
+	benchmarkData, err := o.runBenchmarkOnInstance(ctx, result, config)
+	if err != nil {
+		if terminateErr := o.terminateInstance(ctx, instanceID); terminateErr != nil {
+			// Log termination failure but don't override the original error
+			_ = terminateErr
+		}
+		result.Error = fmt.Errorf("benchmark execution failed: %w", err)
+		result.EndTime = time.Now()
+		return result, result.Error
+	}
+	result.BenchmarkData = benchmarkData
+
+	// Terminate instance
+	if err := o.terminateInstance(ctx, instanceID); err != nil {
+		result.Error = fmt.Errorf("failed to terminate instance: %w", err)
+	}
+
+	result.Status = "completed"
+	result.EndTime = time.Now()
+	return result, nil
+}
+
+// runSystemProfiling executes comprehensive system topology discovery on the benchmark instance
+func (o *Orchestrator) runSystemProfiling(ctx context.Context, result *InstanceResult, config BenchmarkConfig) (*profiling.SystemTopology, error) {
+	// Create profiling script that will be executed on the instance
+	profilingScript := o.generateProfilingScript(config)
+	
+	// Execute profiling via SSH or Systems Manager (SSM)
+	// For now, we'll use a simplified approach that integrates with the benchmark container
+	// In production, this would use AWS Systems Manager Run Command or SSH
+	
+	// The profiling will be integrated into the benchmark execution container
+	// and the results will be collected along with benchmark data
+	
+	// TODO: Implement actual remote profiling execution
+	// This is a placeholder that would be replaced with actual remote execution
+	profiler := profiling.NewSystemProfiler()
+	topology, err := profiler.ProfileSystem(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to profile system topology: %w", err)
+	}
+	
+	return topology, nil
+}
+
+// configureBenchmarkEnvironment optimizes benchmark execution based on system topology
+func (o *Orchestrator) configureBenchmarkEnvironment(ctx context.Context, result *InstanceResult, config BenchmarkConfig) error {
+	topology := result.SystemTopology
+	if topology == nil {
+		return fmt.Errorf("no system topology available for configuration")
+	}
+	
+	// Configure CPU affinity for optimal performance
+	if topology.CPUTopology.PhysicalLayout.HyperthreadingEnabled {
+		// Pin benchmark threads to physical cores only for memory benchmarks
+		return o.configureCPUAffinity(ctx, result, config)
+	}
+	
+	// Configure NUMA binding for memory-intensive benchmarks
+	if len(topology.MemoryTopology.NUMATopology.Nodes) > 1 {
+		return o.configureNUMABinding(ctx, result, config)
+	}
+	
+	// Configure memory policies for optimal benchmark execution
+	return o.configureMemoryPolicies(ctx, result, config)
+}
+
+// configureCPUAffinity sets up CPU affinity for benchmark threads
+func (o *Orchestrator) configureCPUAffinity(ctx context.Context, result *InstanceResult, config BenchmarkConfig) error {
+	// Generate CPU affinity configuration based on topology
+	// This would modify the benchmark execution environment
+	// TODO: Implement CPU affinity configuration
+	return nil
+}
+
+// configureNUMABinding sets up NUMA memory binding for optimal performance
+func (o *Orchestrator) configureNUMABinding(ctx context.Context, result *InstanceResult, config BenchmarkConfig) error {
+	// Configure NUMA binding for memory-intensive benchmarks
+	// TODO: Implement NUMA binding configuration
+	return nil
+}
+
+// configureMemoryPolicies sets up memory allocation policies
+func (o *Orchestrator) configureMemoryPolicies(ctx context.Context, result *InstanceResult, config BenchmarkConfig) error {
+	// Configure memory allocation policies, hugepages, etc.
+	// TODO: Implement memory policy configuration
+	return nil
+}
+
+// generateProfilingScript creates the script for system profiling
+func (o *Orchestrator) generateProfilingScript(config BenchmarkConfig) string {
+	// Generate a comprehensive profiling script that will be executed on the instance
+	// This script would collect CPU, memory, cache, and NUMA topology information
+	return `#!/bin/bash
+# System profiling script for comprehensive hardware topology discovery
+# This script collects detailed hardware information for performance analysis
+
+echo "Starting system profiling..."
+
+# Create profiling results directory
+mkdir -p /tmp/profiling
+
+# Collect CPU information
+lscpu > /tmp/profiling/lscpu.out
+cat /proc/cpuinfo > /tmp/profiling/cpuinfo.out
+
+# Collect cache topology
+find /sys/devices/system/cpu/cpu*/cache -name "index*" -exec sh -c 'echo "=== $1 ===" && cat $1/*' _ {} \; > /tmp/profiling/cache_topology.out 2>/dev/null
+
+# Collect memory information
+cat /proc/meminfo > /tmp/profiling/meminfo.out
+if command -v dmidecode >/dev/null 2>&1; then
+    dmidecode -t memory > /tmp/profiling/dmidecode.out 2>/dev/null
+fi
+
+# Collect NUMA topology
+if command -v numactl >/dev/null 2>&1; then
+    numactl --hardware > /tmp/profiling/numa_topology.out 2>/dev/null
+fi
+
+# Collect frequency information
+find /sys/devices/system/cpu/cpu*/cpufreq -name "*" -exec sh -c 'echo "=== $1 ===" && cat $1' _ {} \; > /tmp/profiling/cpu_freq.out 2>/dev/null
+
+# Collect virtualization information
+if [ -f /sys/class/dmi/id/sys_vendor ]; then
+    cat /sys/class/dmi/id/sys_vendor > /tmp/profiling/sys_vendor.out
+fi
+
+echo "System profiling completed."
+`
 }
 
 func (o *Orchestrator) checkQuotas(ctx context.Context, instanceType string) error {

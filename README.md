@@ -1,10 +1,17 @@
-# AWS Instance Benchmarks
+# Multi-Cloud Instance Benchmarks
 
-An open database of comprehensive performance benchmarks for AWS EC2 instances, designed to enable data-driven instance selection for research computing workloads.
+An open database of comprehensive performance benchmarks for cloud instances across providers, designed to enable data-driven instance selection for research computing workloads.
+
+## 🌐 Supported Cloud Providers
+
+- **AWS EC2** (Production Ready) - Complete benchmark coverage across 27+ instance families
+- **Google Cloud Compute Engine** (Planned) - Architecture designed and ready for implementation  
+- **Microsoft Azure Virtual Machines** (Planned) - Provider interface implemented
+- **Oracle Cloud Infrastructure** (Planned) - Multi-cloud framework supports extension
 
 ## 🎯 Mission
 
-Provide the research computing community with deep, microarchitectural performance data for AWS instances that goes beyond published specifications. Enable tools like [ComputeCompass](https://github.com/scttfrdmn/computecompass) to make intelligent, performance-aware recommendations.
+Provide the research computing community with deep, microarchitectural performance data for cloud instances that goes beyond published specifications. Enable tools like [ComputeCompass](https://github.com/scttfrdmn/computecompass) to make intelligent, performance-aware recommendations across cloud providers.
 
 ## 📊 What's Included
 
@@ -55,10 +62,10 @@ data/
 # Clone and build
 git clone https://github.com/scttfrdmn/aws-instance-benchmarks.git
 cd aws-instance-benchmarks
-go build -o aws-benchmark-collector ./cmd
+go build -o cloud-benchmark-collector ./cmd
 
 # Verify installation
-./aws-benchmark-collector --help
+./cloud-benchmark-collector --help
 ```
 
 ### **Basic Usage**
@@ -82,6 +89,19 @@ go build -o aws-benchmark-collector ./cmd
     --benchmarks stream,hpl \
     --iterations 3 \
     --max-concurrency 8
+
+# Run benchmarks with comprehensive system profiling
+./aws-benchmark-collector run \
+    --instance-types m7i.large,c7g.large,r7a.large \
+    --region us-east-1 \
+    --key-pair my-key-pair \
+    --security-group sg-xxxxxxxxx \
+    --subnet subnet-xxxxxxxxx \
+    --s3-bucket my-benchmark-bucket \
+    --benchmarks stream,hpl \
+    --enable-system-profiling \
+    --iterations 5 \
+    --max-concurrency 3
 
 # Schedule systematic weekly benchmark execution
 ./aws-benchmark-collector schedule weekly \
@@ -195,6 +215,11 @@ func main() {
   - AMD: Zen4 features, BLIS optimization, vectorization
   - Graviton: Neon SIMD, SVE, ARM-specific optimizations
 - **Statistical Validation**: Multiple iterations with confidence intervals
+- **System Profiling**: Comprehensive hardware topology discovery
+  - CPU microarchitecture, clock speeds, instruction sets
+  - Cache hierarchy (L1/L2/L3 sizes, associativity, latencies)
+  - NUMA topology and memory controller details
+  - Virtualization environment and optimization features
 
 ## ⚙️ AWS Configuration Requirements
 

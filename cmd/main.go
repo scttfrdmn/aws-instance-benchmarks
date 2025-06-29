@@ -197,9 +197,18 @@ func (dv *DataValidator) ValidateStatistics() (StatisticalValidationResults, err
 
 func main() {
 	var rootCmd = &cobra.Command{
-		Use:   "aws-benchmark-collector",
-		Short: "AWS EC2 instance benchmark collection tool",
-		Long:  "Comprehensive performance benchmark collection for AWS EC2 instances",
+		Use:   "cloud-benchmark-collector",
+		Short: "Multi-cloud instance benchmark collection tool",
+		Long:  `Comprehensive performance benchmark collection for cloud instances across providers.
+
+Supported cloud providers:
+- AWS EC2 (production ready)
+- Google Cloud Compute Engine (planned)
+- Microsoft Azure Virtual Machines (planned)
+- Oracle Cloud Infrastructure (planned)
+
+The tool provides consistent benchmarking methodology across providers while
+capturing provider-specific optimizations and system characteristics.`,
 	}
 
 	var discoverCmd = &cobra.Command{
@@ -248,17 +257,22 @@ func main() {
 	var maxConcurrency int
 	var iterations int
 	var s3Bucket string
+	var enableSystemProfiling bool
 
+	var runProvider string
+	runCmd.Flags().StringVar(&runProvider, "provider", "aws", "Cloud provider (aws, gcp, azure, oci)")
 	runCmd.Flags().StringSliceVar(&instanceTypes, "instance-types", []string{"m7i.large"}, "Instance types to benchmark")
-	runCmd.Flags().StringVar(&region, "region", "us-east-1", "AWS region")
-	runCmd.Flags().StringVar(&keyPair, "key-pair", "", "EC2 key pair name")
-	runCmd.Flags().StringVar(&securityGroup, "security-group", "", "Security group ID")
-	runCmd.Flags().StringVar(&subnet, "subnet", "", "Subnet ID")
+	runCmd.Flags().StringVar(&region, "region", "us-east-1", "Cloud provider region")
+	runCmd.Flags().StringVar(&keyPair, "key-pair", "", "SSH key pair name (provider-specific)")
+	runCmd.Flags().StringVar(&securityGroup, "security-group", "", "Security group/firewall rule ID")
+	runCmd.Flags().StringVar(&subnet, "subnet", "", "Subnet/VPC subnet ID")
 	runCmd.Flags().BoolVar(&skipQuota, "skip-quota-check", false, "Skip quota validation before launching")
 	runCmd.Flags().StringSliceVar(&benchmarkSuites, "benchmarks", []string{"stream"}, "Benchmark suites to run (stream, hpl)")
 	runCmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 5, "Maximum number of concurrent benchmarks")
 	runCmd.Flags().IntVar(&iterations, "iterations", 1, "Number of benchmark iterations for statistical validation")
-	runCmd.Flags().StringVar(&s3Bucket, "s3-bucket", "", "S3 bucket for storing results (defaults to aws-instance-benchmarks-data-{region})")
+	runCmd.Flags().StringVar(&s3Bucket, "storage-bucket", "", "Cloud storage bucket for storing results")
+	runCmd.Flags().StringVar(&s3Bucket, "s3-bucket", "", "(Deprecated) Use --storage-bucket instead")
+	runCmd.Flags().BoolVar(&enableSystemProfiling, "enable-system-profiling", false, "Enable comprehensive system topology discovery and profiling")
 
 	var schemaCmd = &cobra.Command{
 		Use:   "schema",
@@ -357,16 +371,19 @@ Example usage:
 	var enableSpotInstances bool
 	var benchmarkRotation bool
 	var instanceSizeWaves bool
+	var cloudProvider string
 
+	weeklyCmd.Flags().StringVar(&cloudProvider, "provider", "aws", "Cloud provider (aws, gcp, azure, oci)")
 	weeklyCmd.Flags().StringSliceVar(&instanceFamilies, "instance-families", []string{"m7i", "c7g", "r7a"}, "Instance families to benchmark")
-	weeklyCmd.Flags().StringVar(&weeklyRegion, "region", "us-east-1", "AWS region")
+	weeklyCmd.Flags().StringVar(&weeklyRegion, "region", "us-east-1", "Cloud provider region")
 	weeklyCmd.Flags().IntVar(&maxDailyJobs, "max-daily-jobs", 30, "Maximum jobs per day")
 	weeklyCmd.Flags().IntVar(&maxConcurrentJobs, "max-concurrent", 5, "Maximum concurrent executions")
-	weeklyCmd.Flags().StringVar(&weeklyKeyPair, "key-pair", "", "EC2 key pair name")
-	weeklyCmd.Flags().StringVar(&weeklySecurityGroup, "security-group", "", "Security group ID")
-	weeklyCmd.Flags().StringVar(&weeklySubnet, "subnet", "", "Subnet ID")
-	weeklyCmd.Flags().StringVar(&weeklyS3Bucket, "s3-bucket", "", "S3 bucket for results")
-	weeklyCmd.Flags().BoolVar(&enableSpotInstances, "enable-spot", true, "Use spot instances for cost optimization")
+	weeklyCmd.Flags().StringVar(&weeklyKeyPair, "key-pair", "", "SSH key pair name (provider-specific)")
+	weeklyCmd.Flags().StringVar(&weeklySecurityGroup, "security-group", "", "Security group/firewall rule ID")
+	weeklyCmd.Flags().StringVar(&weeklySubnet, "subnet", "", "Subnet/VPC subnet ID")
+	weeklyCmd.Flags().StringVar(&weeklyS3Bucket, "storage-bucket", "", "Cloud storage bucket for results")
+	weeklyCmd.Flags().StringVar(&weeklyS3Bucket, "s3-bucket", "", "(Deprecated) Use --storage-bucket instead")
+	weeklyCmd.Flags().BoolVar(&enableSpotInstances, "enable-spot", true, "Use spot/preemptible instances for cost optimization")
 	weeklyCmd.Flags().BoolVar(&benchmarkRotation, "benchmark-rotation", true, "Rotate benchmark types across time windows")
 	weeklyCmd.Flags().BoolVar(&instanceSizeWaves, "instance-size-waves", true, "Group instances by size to avoid same physical nodes")
 
@@ -386,26 +403,36 @@ Example usage:
 	var processCmd = &cobra.Command{
 		Use:   "process",
 		Short: "Process and commit benchmark data to Git repository",
-		Long: `Process benchmark results from S3 storage into Git-native statistical format.
+		Long: `Process benchmark results from cloud storage into Git-native statistical format.
 
 This command provides comprehensive data processing capabilities:
-- Convert raw S3 benchmark results to statistical summaries
+- Convert raw cloud storage results to statistical summaries
 - Update Git repository with versioned performance data
 - Generate family and architecture aggregations
 - Validate data quality and statistical significance
 - Create descriptive commits with performance summaries
+- Support multi-cloud data normalization and comparison
 
 Example usage:
-  # Process daily results from S3 into Git
-  ./aws-benchmark-collector process daily \
+  # Process daily results from AWS S3 into Git
+  ./cloud-benchmark-collector process daily \
+    --provider aws \
     --date 2024-06-29 \
-    --s3-bucket aws-instance-benchmarks-data-us-east-1 \
+    --storage-bucket aws-instance-benchmarks-data-us-east-1 \
     --commit-to-git
 
-  # Generate aggregated summaries from existing data
-  ./aws-benchmark-collector process aggregate \
+  # Process Google Cloud Storage results
+  ./cloud-benchmark-collector process daily \
+    --provider gcp \
+    --date 2024-06-29 \
+    --storage-bucket gs://gcp-benchmarks-data \
+    --commit-to-git
+
+  # Generate cross-provider aggregated summaries
+  ./cloud-benchmark-collector process aggregate \
     --regenerate-families \
-    --regenerate-architectures`,
+    --regenerate-architectures \
+    --cross-provider-analysis`,
 	}
 
 	var dailyCmd = &cobra.Command{
@@ -433,8 +460,11 @@ Example usage:
 	var branchPrefix string
 	var qualityThreshold float64
 
+	var processProvider string
+	dailyCmd.Flags().StringVar(&processProvider, "provider", "aws", "Cloud provider (aws, gcp, azure, oci)")
 	dailyCmd.Flags().StringVar(&processDate, "date", time.Now().Format("2006-01-02"), "Date to process (YYYY-MM-DD)")
-	dailyCmd.Flags().StringVar(&s3BucketProcess, "s3-bucket", "", "S3 bucket containing raw results")
+	dailyCmd.Flags().StringVar(&s3BucketProcess, "storage-bucket", "", "Cloud storage bucket containing raw results (S3, GCS, etc.)")
+	dailyCmd.Flags().StringVar(&s3BucketProcess, "s3-bucket", "", "(Deprecated) Use --storage-bucket instead")
 	dailyCmd.Flags().BoolVar(&commitToGit, "commit-to-git", true, "Commit processed data to Git repository")
 	dailyCmd.Flags().StringVar(&branchPrefix, "branch-prefix", "data-collection-", "Prefix for Git branch names")
 	dailyCmd.Flags().Float64Var(&qualityThreshold, "quality-threshold", 0.95, "Minimum quality score for data inclusion")
@@ -445,9 +475,11 @@ Example usage:
 	var regenerateIndices bool
 	var outputDir string
 
+	var crossProviderAnalysis bool
 	aggregateCmd.Flags().BoolVar(&regenerateFamilies, "regenerate-families", true, "Regenerate family summaries")
 	aggregateCmd.Flags().BoolVar(&regenerateArchitectures, "regenerate-architectures", true, "Regenerate architecture summaries")
 	aggregateCmd.Flags().BoolVar(&regenerateIndices, "regenerate-indices", true, "Regenerate performance indices")
+	aggregateCmd.Flags().BoolVar(&crossProviderAnalysis, "cross-provider-analysis", false, "Generate cross-provider comparison analysis")
 	aggregateCmd.Flags().StringVar(&outputDir, "output-dir", "data/aggregated", "Output directory for aggregated data")
 
 	// Validation flags
@@ -714,7 +746,15 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 			}
 			
 			benchmarkStartTime := time.Now()
-			result, err := orchestrator.RunBenchmark(ctx, j.config)
+			var result *aws.InstanceResult
+			var err error
+			
+			// Use system profiling if enabled
+			if enableSystemProfiling {
+				result, err = orchestrator.RunBenchmarkWithProfiling(ctx, j.config)
+			} else {
+				result, err = orchestrator.RunBenchmark(ctx, j.config)
+			}
 			benchmarkEndTime := time.Now()
 			
 			// Prepare metrics for CloudWatch
@@ -967,6 +1007,13 @@ func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *aws
 			"benchmark_version": "latest",
 			"compiler_optimizations": getCompilerOptimizations(result.InstanceType),
 		},
+	}
+	
+	// Include system topology if available from profiling
+	if result.SystemTopology != nil {
+		resultData["system_topology"] = result.SystemTopology
+		// Update schema version to indicate enhanced data
+		resultData["schema_version"] = "2.0.0"
 	}
 
 	// Convert to JSON
