@@ -45,6 +45,11 @@ type benchmarkResult struct {
 	metrics        monitoring.BenchmarkMetrics
 }
 
+// BenchmarkRunner interface for custom benchmark execution
+type BenchmarkRunner interface {
+	ExecuteBenchmark(ctx context.Context, job *scheduler.BenchmarkJob) error
+}
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "aws-benchmark-collector",
@@ -155,9 +160,87 @@ func main() {
 	analyzeCmd.Flags().StringVar(&outputFormat, "format", "table", "Output format: table, json, csv")
 	analyzeCmd.Flags().StringVar(&sortByMetric, "sort", "value_score", "Sort by: value_score, cost_efficiency, performance, price")
 
+	// Add schedule command with subcommands
+	var scheduleCmd = &cobra.Command{
+		Use:   "schedule",
+		Short: "Schedule systematic benchmark execution over time",
+		Long: `Schedule comprehensive benchmark execution across multiple instance types
+using intelligent time-based distribution to avoid quota limits and optimize costs.
+
+This command enables systematic testing of large numbers of instances by:
+- Distributing workloads across daily time windows over a week
+- Balancing benchmark types (STREAM + HPL) across execution periods
+- Managing AWS quotas and concurrent instance limits
+- Optimizing costs through spot instances and off-peak execution
+- Providing progress tracking and retry logic for failed jobs
+
+Example usage:
+  # Generate and execute a weekly benchmark plan
+  ./aws-benchmark-collector schedule weekly \
+    --instance-families m7i,c7g,r7a \
+    --region us-east-1 \
+    --max-daily-jobs 20 \
+    --max-concurrent 5
+
+  # Create a plan without executing
+  ./aws-benchmark-collector schedule plan \
+    --instance-types m7i.large,c7g.large \
+    --output weekly-plan.json`,
+	}
+
+	var weeklyCmd = &cobra.Command{
+		Use:   "weekly",
+		Short: "Generate and execute weekly benchmark plan",
+		RunE:  runWeeklySchedule,
+	}
+
+	var planCmd = &cobra.Command{
+		Use:   "plan",
+		Short: "Generate benchmark execution plan without executing",
+		RunE:  runPlanGeneration,
+	}
+
+	// Weekly command flags
+	var instanceFamilies []string
+	var weeklyRegion string
+	var maxDailyJobs int
+	var maxConcurrentJobs int
+	var weeklyKeyPair string
+	var weeklySecurityGroup string
+	var weeklySubnet string
+	var weeklyS3Bucket string
+	var enableSpotInstances bool
+	var benchmarkRotation bool
+	var instanceSizeWaves bool
+
+	weeklyCmd.Flags().StringSliceVar(&instanceFamilies, "instance-families", []string{"m7i", "c7g", "r7a"}, "Instance families to benchmark")
+	weeklyCmd.Flags().StringVar(&weeklyRegion, "region", "us-east-1", "AWS region")
+	weeklyCmd.Flags().IntVar(&maxDailyJobs, "max-daily-jobs", 30, "Maximum jobs per day")
+	weeklyCmd.Flags().IntVar(&maxConcurrentJobs, "max-concurrent", 5, "Maximum concurrent executions")
+	weeklyCmd.Flags().StringVar(&weeklyKeyPair, "key-pair", "", "EC2 key pair name")
+	weeklyCmd.Flags().StringVar(&weeklySecurityGroup, "security-group", "", "Security group ID")
+	weeklyCmd.Flags().StringVar(&weeklySubnet, "subnet", "", "Subnet ID")
+	weeklyCmd.Flags().StringVar(&weeklyS3Bucket, "s3-bucket", "", "S3 bucket for results")
+	weeklyCmd.Flags().BoolVar(&enableSpotInstances, "enable-spot", true, "Use spot instances for cost optimization")
+	weeklyCmd.Flags().BoolVar(&benchmarkRotation, "benchmark-rotation", true, "Rotate benchmark types across time windows")
+	weeklyCmd.Flags().BoolVar(&instanceSizeWaves, "instance-size-waves", true, "Group instances by size to avoid same physical nodes")
+
+	// Plan command flags
+	var planInstanceTypes []string
+	var planOutput string
+	var planBenchmarks []string
+
+	planCmd.Flags().StringSliceVar(&planInstanceTypes, "instance-types", []string{}, "Specific instance types to plan")
+	planCmd.Flags().StringVar(&planOutput, "output", "weekly-plan.json", "Output file for plan")
+	planCmd.Flags().StringSliceVar(&planBenchmarks, "benchmarks", []string{"stream", "hpl"}, "Benchmark suites to include")
+
+	scheduleCmd.AddCommand(weeklyCmd)
+	scheduleCmd.AddCommand(planCmd)
+
 	rootCmd.AddCommand(discoverCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(scheduleCmd)
 	rootCmd.AddCommand(schemaCmd)
 	rootCmd.AddCommand(analyzeCmd)
 
@@ -1671,4 +1754,321 @@ func getRankingEmoji(rank int) string {
 	default:
 		return fmt.Sprintf("   #%d", rank)
 	}
+}
+
+// runWeeklySchedule implements the weekly scheduling command
+func runWeeklySchedule(cmd *cobra.Command, _ []string) error {
+	ctx := context.Background()
+	
+	// Get flags
+	instanceFamilies, _ := cmd.Flags().GetStringSlice("instance-families")
+	region, _ := cmd.Flags().GetString("region")
+	maxDailyJobs, _ := cmd.Flags().GetInt("max-daily-jobs")
+	maxConcurrentJobs, _ := cmd.Flags().GetInt("max-concurrent")
+	keyPair, _ := cmd.Flags().GetString("key-pair")
+	securityGroup, _ := cmd.Flags().GetString("security-group")
+	subnet, _ := cmd.Flags().GetString("subnet")
+	s3Bucket, _ := cmd.Flags().GetString("s3-bucket")
+	enableSpot, _ := cmd.Flags().GetBool("enable-spot")
+	benchmarkRotation, _ := cmd.Flags().GetBool("benchmark-rotation")
+	instanceSizeWaves, _ := cmd.Flags().GetBool("instance-size-waves")
+	
+	// Validate required parameters
+	if keyPair == "" {
+		return ErrKeyPairRequired
+	}
+	if securityGroup == "" {
+		return ErrSecurityGroupRequired
+	}
+	if subnet == "" {
+		return ErrSubnetRequired
+	}
+	
+	// Expand instance families to specific instance types
+	instanceTypes := expandInstanceFamilies(instanceFamilies, instanceSizeWaves)
+	fmt.Printf("📋 Generated %d instance types from %d families\n", len(instanceTypes), len(instanceFamilies))
+	
+	// Configure scheduler
+	config := scheduler.Config{
+		MaxConcurrentJobs: maxConcurrentJobs,
+		MaxDailyJobs:      maxDailyJobs,
+		PreferredRegions:  []string{region},
+		SpotInstancePreference: enableSpot,
+		TimeZone:          "UTC",
+		RetryAttempts:     3,
+		CostOptimization:  true,
+	}
+	
+	batchScheduler := scheduler.NewBatchScheduler(config)
+	
+	// Determine benchmarks with rotation
+	benchmarks := []string{"stream"}
+	if benchmarkRotation {
+		benchmarks = append(benchmarks, "hpl")
+		fmt.Printf("🔄 Benchmark rotation enabled: %v\n", benchmarks)
+	} else {
+		fmt.Printf("📊 Single benchmark mode: %v\n", benchmarks)
+	}
+	
+	// Generate weekly plan
+	fmt.Printf("🗓️  Generating weekly benchmark plan...\n")
+	plan, err := batchScheduler.GenerateWeeklyPlan(instanceTypes, benchmarks)
+	if err != nil {
+		return fmt.Errorf("failed to generate plan: %w", err)
+	}
+	
+	fmt.Printf("📅 Plan generated: %d jobs across %d time windows\n", len(plan.Jobs), len(plan.TimeWindows))
+	fmt.Printf("💰 Estimated cost: $%.2f\n", plan.EstimatedCost)
+	fmt.Printf("⏱️  Estimated duration: %v\n", plan.EstimatedDuration)
+	
+	// Display plan summary
+	displayPlanSummary(plan, instanceSizeWaves)
+	
+	// Ask for confirmation
+	fmt.Printf("\n❓ Execute this plan? (y/N): ")
+	var response string
+	fmt.Scanln(&response)
+	if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+		fmt.Println("❌ Execution cancelled")
+		return nil
+	}
+	
+	// Initialize AWS orchestrator and storage
+	orchestrator, err := aws.NewOrchestrator(region)
+	if err != nil {
+		return fmt.Errorf("failed to create orchestrator: %w", err)
+	}
+	
+	bucketName := s3Bucket
+	if bucketName == "" {
+		bucketName = fmt.Sprintf("aws-instance-benchmarks-data-%s", region)
+	}
+	
+	storageConfig := storage.Config{
+		BucketName:         bucketName,
+		KeyPrefix:          "scheduled-benchmarks/",
+		EnableCompression:  false,
+		EnableVersioning:   false,
+		RetryAttempts:      3,
+		UploadTimeout:      5 * time.Minute,
+		BatchSize:          1,
+		StorageClass:       "STANDARD",
+		DataVersion:        "1.0",
+	}
+	s3Storage, err := storage.NewS3Storage(ctx, storageConfig, region)
+	if err != nil {
+		return fmt.Errorf("failed to initialize S3 storage: %w", err)
+	}
+	
+	// Execute the plan
+	fmt.Printf("\n🚀 Starting weekly benchmark execution...\n")
+	executor := &ScheduledBenchmarkExecutor{
+		orchestrator: orchestrator,
+		s3Storage:    s3Storage,
+		keyPair:      keyPair,
+		securityGroup: securityGroup,
+		subnet:       subnet,
+		region:       region,
+	}
+	
+	if err := executeScheduledPlan(ctx, executor, batchScheduler, plan); err != nil {
+		return fmt.Errorf("failed to execute plan: %w", err)
+	}
+	
+	fmt.Printf("✅ Weekly benchmark execution completed successfully!\n")
+	return nil
+}
+
+// runPlanGeneration implements the plan generation command
+func runPlanGeneration(cmd *cobra.Command, _ []string) error {
+	// Get flags
+	instanceTypes, _ := cmd.Flags().GetStringSlice("instance-types")
+	outputFile, _ := cmd.Flags().GetString("output")
+	benchmarks, _ := cmd.Flags().GetStringSlice("benchmarks")
+	
+	if len(instanceTypes) == 0 {
+		// Use default set if none provided
+		instanceTypes = []string{"m7i.large", "c7g.large", "r7a.large"}
+	}
+	
+	// Configure scheduler
+	config := scheduler.Config{
+		MaxConcurrentJobs: 5,
+		MaxDailyJobs:      30,
+		PreferredRegions:  []string{"us-east-1"},
+		SpotInstancePreference: true,
+		TimeZone:          "UTC",
+		RetryAttempts:     3,
+		CostOptimization:  true,
+	}
+	
+	batchScheduler := scheduler.NewBatchScheduler(config)
+	
+	// Generate plan
+	fmt.Printf("📋 Generating plan for %d instance types...\n", len(instanceTypes))
+	plan, err := batchScheduler.GenerateWeeklyPlan(instanceTypes, benchmarks)
+	if err != nil {
+		return fmt.Errorf("failed to generate plan: %w", err)
+	}
+	
+	// Save plan to file
+	planData, err := json.MarshalIndent(plan, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal plan: %w", err)
+	}
+	
+	if err := os.WriteFile(outputFile, planData, 0644); err != nil {
+		return fmt.Errorf("failed to write plan file: %w", err)
+	}
+	
+	fmt.Printf("📄 Plan saved to: %s\n", outputFile)
+	fmt.Printf("📊 Plan contains: %d jobs across %d time windows\n", len(plan.Jobs), len(plan.TimeWindows))
+	fmt.Printf("💰 Estimated cost: $%.2f\n", plan.EstimatedCost)
+	fmt.Printf("⏱️  Estimated duration: %v\n", plan.EstimatedDuration)
+	
+	return nil
+}
+
+// expandInstanceFamilies converts families to specific instance types with size wave grouping
+func expandInstanceFamilies(families []string, sizeWaves bool) []string {
+	var instanceTypes []string
+	
+	// Standard sizes in logical waves to avoid same physical nodes
+	sizesByWave := [][]string{
+		{"large"},           // Wave 1: Small instances
+		{"xlarge"},          // Wave 2: Medium instances
+		{"2xlarge"},         // Wave 3: Large instances
+		{"4xlarge", "8xlarge"}, // Wave 4: Very large instances
+	}
+	
+	if sizeWaves {
+		// Group by size waves to minimize physical node conflicts
+		for _, wave := range sizesByWave {
+			for _, family := range families {
+				for _, size := range wave {
+					instanceTypes = append(instanceTypes, fmt.Sprintf("%s.%s", family, size))
+				}
+			}
+		}
+	} else {
+		// Traditional family grouping
+		for _, family := range families {
+			for _, wave := range sizesByWave {
+				for _, size := range wave {
+					instanceTypes = append(instanceTypes, fmt.Sprintf("%s.%s", family, size))
+				}
+			}
+		}
+	}
+	
+	return instanceTypes
+}
+
+// displayPlanSummary shows a summary of the weekly plan
+func displayPlanSummary(plan *scheduler.WeeklyPlan, sizeWaves bool) {
+	fmt.Printf("\n📋 Weekly Plan Summary:\n")
+	fmt.Printf("   Start Date: %s\n", plan.StartDate.Format("2006-01-02 15:04:05"))
+	fmt.Printf("   Time Windows: %d\n", len(plan.TimeWindows))
+	fmt.Printf("   Total Jobs: %d\n", len(plan.Jobs))
+	
+	// Group jobs by benchmark type
+	benchmarkCounts := make(map[string]int)
+	for _, job := range plan.Jobs {
+		benchmarkCounts[job.BenchmarkSuite]++
+	}
+	
+	fmt.Printf("\n📊 Benchmark Distribution:\n")
+	for benchmark, count := range benchmarkCounts {
+		fmt.Printf("   %s: %d jobs\n", benchmark, count)
+	}
+	
+	// Show size wave distribution if enabled
+	if sizeWaves {
+		sizeCounts := make(map[string]int)
+		for _, job := range plan.Jobs {
+			parts := strings.Split(job.InstanceType, ".")
+			if len(parts) == 2 {
+				sizeCounts[parts[1]]++
+			}
+		}
+		
+		fmt.Printf("\n🌊 Instance Size Waves:\n")
+		for size, count := range sizeCounts {
+			fmt.Printf("   %s: %d instances\n", size, count)
+		}
+	}
+	
+	// Show time window breakdown
+	fmt.Printf("\n⏰ Time Window Schedule:\n")
+	for i, window := range plan.TimeWindows {
+		jobCount := 0
+		for _, job := range plan.Jobs {
+			// This is a simplified count - in reality would need proper window assignment
+			if i < len(plan.Jobs)/len(plan.TimeWindows) {
+				jobCount++
+			}
+		}
+		fmt.Printf("   Window %d: %s (Duration: %v, Max Jobs: %d)\n", 
+			i+1, window.StartTime.Format("Mon 15:04"), window.Duration, window.MaxJobs)
+	}
+}
+
+// ScheduledBenchmarkExecutor handles benchmark execution for scheduled jobs
+type ScheduledBenchmarkExecutor struct {
+	orchestrator  *aws.Orchestrator
+	s3Storage     *storage.S3Storage
+	keyPair       string
+	securityGroup string
+	subnet        string
+	region        string
+}
+
+// executeScheduledPlan executes a scheduled benchmark plan
+func executeScheduledPlan(ctx context.Context, executor *ScheduledBenchmarkExecutor, 
+	batchScheduler *scheduler.BatchScheduler, plan *scheduler.WeeklyPlan) error {
+	
+	// Create a custom executor that integrates with our existing benchmark logic
+	customExecutor := &CustomBenchmarkExecutor{
+		executor: executor,
+		batchScheduler: batchScheduler,
+	}
+	
+	// Replace the scheduler's benchmark runner with our custom implementation
+	batchScheduler.SetBenchmarkRunner(customExecutor)
+	
+	// Execute the plan
+	return batchScheduler.ExecutePlan(ctx, plan)
+}
+
+// CustomBenchmarkExecutor integrates scheduler with existing benchmark execution
+type CustomBenchmarkExecutor struct {
+	executor       *ScheduledBenchmarkExecutor
+	batchScheduler *scheduler.BatchScheduler
+}
+
+// ExecuteBenchmark runs a single benchmark job using existing orchestrator
+func (ce *CustomBenchmarkExecutor) ExecuteBenchmark(ctx context.Context, job *scheduler.BenchmarkJob) error {
+	// Convert scheduler job to our BenchmarkConfig format
+	config := aws.BenchmarkConfig{
+		InstanceType:    job.InstanceType,
+		ContainerImage:  fmt.Sprintf("public.ecr.aws/aws-benchmarks/%s:%s", 
+			job.BenchmarkSuite, getContainerTagForInstance(job.InstanceType)),
+		BenchmarkSuite:  job.BenchmarkSuite,
+		Region:          job.Region,
+		KeyPairName:     ce.executor.keyPair,
+		SecurityGroupID: ce.executor.securityGroup,
+		SubnetID:        ce.executor.subnet,
+		SkipQuotaCheck:  false,
+		MaxRetries:      3,
+		Timeout:         10 * time.Minute,
+	}
+	
+	// Execute benchmark using existing orchestrator
+	result, err := ce.executor.orchestrator.RunBenchmark(ctx, config)
+	if err != nil {
+		return fmt.Errorf("benchmark execution failed: %w", err)
+	}
+	
+	// Store results using existing storage logic
+	return storeResults(ctx, ce.executor.s3Storage, result, job.BenchmarkSuite, job.Region)
 }

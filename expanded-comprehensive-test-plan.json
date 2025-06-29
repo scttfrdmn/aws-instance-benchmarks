@@ -1,0 +1,114 @@
+{
+  "expanded_comprehensive_test_plan": {
+    "description": "Comprehensive testing across 50+ AWS instance types covering all major families and sizes",
+    "target_instances": [
+      {
+        "category": "General Purpose",
+        "families": [
+          {"family": "m7i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "m7a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "m7g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "m6i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m6a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m6g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m5", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m5a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m5n", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m5zn", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "t3", "sizes": ["medium", "large", "xlarge", "2xlarge"]},
+          {"family": "t3a", "sizes": ["medium", "large", "xlarge", "2xlarge"]},
+          {"family": "t4g", "sizes": ["medium", "large", "xlarge", "2xlarge"]}
+        ]
+      },
+      {
+        "category": "Compute Optimized",
+        "families": [
+          {"family": "c7i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "c7a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "c7g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "c6i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c6a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c6g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c5", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c5a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c5n", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]}
+        ]
+      },
+      {
+        "category": "Memory Optimized",
+        "families": [
+          {"family": "r7i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "r7a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "r7g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "r6i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r6a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r6g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r5", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r5a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r5n", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "x2gd", "sizes": ["medium", "large", "xlarge", "2xlarge"]},
+          {"family": "z1d", "sizes": ["large", "xlarge", "2xlarge", "3xlarge"]}
+        ]
+      },
+      {
+        "category": "Storage Optimized",
+        "families": [
+          {"family": "i4i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "i4g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "i3", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "i3en", "sizes": ["large", "xlarge", "2xlarge", "3xlarge"]},
+          {"family": "d3", "sizes": ["xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+          {"family": "d3en", "sizes": ["xlarge", "2xlarge", "4xlarge"]},
+          {"family": "h1", "sizes": ["2xlarge", "4xlarge", "8xlarge", "16xlarge"]}
+        ]
+      },
+      {
+        "category": "Accelerated Computing",
+        "families": [
+          {"family": "p3", "sizes": ["2xlarge", "8xlarge"]},
+          {"family": "p4d", "sizes": ["24xlarge"]},
+          {"family": "g4dn", "sizes": ["xlarge", "2xlarge", "4xlarge"]},
+          {"family": "g4ad", "sizes": ["xlarge", "2xlarge", "4xlarge"]},
+          {"family": "g5", "sizes": ["xlarge", "2xlarge", "4xlarge"]},
+          {"family": "inf1", "sizes": ["xlarge", "2xlarge", "6xlarge"]},
+          {"family": "inf2", "sizes": ["xlarge", "8xlarge"]},
+          {"family": "trn1", "sizes": ["2xlarge", "32xlarge"]},
+          {"family": "f1", "sizes": ["2xlarge", "4xlarge", "16xlarge"]}
+        ]
+      },
+      {
+        "category": "Network Optimized",
+        "families": [
+          {"family": "c5n", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m5n", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r5n", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m6in", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c6in", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r6in", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]}
+        ]
+      },
+      {
+        "category": "High Memory",
+        "families": [
+          {"family": "x2idn", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "x2iedn", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "x2iezn", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "u-6tb1", "sizes": ["56xlarge", "112xlarge"]},
+          {"family": "u7i-12tb", "sizes": ["224xlarge"]}
+        ]
+      }
+    ],
+    "benchmarks": ["stream", "hpl"],
+    "iterations": 2,
+    "max_concurrency": 15,
+    "estimated_runtime": "8-12 hours",
+    "estimated_instances": 180,
+    "estimated_cost": "$2000-3000",
+    "special_considerations": {
+      "gpu_instances": "Will skip GPU-specific benchmarks on compute instances",
+      "high_memory": "May require extended timeouts for very large instances",
+      "spot_instances": "Consider using spot instances for cost optimization",
+      "quota_limits": "May hit service quotas for specialized instances"
+    }
+  }
+}

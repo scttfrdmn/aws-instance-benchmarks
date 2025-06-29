@@ -83,16 +83,23 @@ go build -o aws-benchmark-collector ./cmd
     --iterations 3 \
     --max-concurrency 8
 
-# Run benchmarks with custom S3 storage
-./aws-benchmark-collector run \
-    --instance-types m7i.large,c7g.large \
-    --region us-west-2 \
+# Schedule systematic weekly benchmark execution
+./aws-benchmark-collector schedule weekly \
+    --instance-families m7i,c7g,r7a \
+    --region us-east-1 \
+    --max-daily-jobs 30 \
+    --max-concurrent 5 \
     --key-pair my-key-pair \
     --security-group sg-xxxxxxxxx \
     --subnet subnet-xxxxxxxxx \
-    --s3-bucket aws-instance-benchmarks-data-us-west-2 \
-    --benchmarks stream \
-    --iterations 5
+    --benchmark-rotation \
+    --instance-size-waves
+
+# Generate benchmark execution plan without running
+./aws-benchmark-collector schedule plan \
+    --instance-types m7i.large,c7g.large,r7a.large \
+    --benchmarks stream,hpl \
+    --output weekly-plan.json
 
 # Schema validation and migration
 ./aws-benchmark-collector schema validate results/ --version 1.0.0
@@ -165,6 +172,10 @@ func main() {
 ### Benchmark Types
 - **STREAM**: Memory bandwidth testing across all architectures
 - **HPL (LINPACK)**: CPU floating-point performance
+- **Microarchitecture Benchmarks**: Architecture-specific performance analysis
+  - Intel: AVX-512, MKL optimization, cache hierarchy
+  - AMD: Zen4 features, BLIS optimization, vectorization
+  - Graviton: Neon SIMD, SVE, ARM-specific optimizations
 - **Statistical Validation**: Multiple iterations with confidence intervals
 
 ## ⚙️ AWS Configuration Requirements
@@ -218,6 +229,7 @@ aws configure
 ## 🏗️ Architecture & Components
 
 ### Core Packages
+- **`pkg/scheduler`**: Batch scheduling system for systematic execution over time
 - **`pkg/discovery`**: AWS instance type discovery and architecture mapping
 - **`pkg/benchmarks`**: STREAM and HPL benchmark execution with statistical validation
 - **`pkg/analysis`**: Multi-dimensional data aggregation and performance analysis
@@ -227,9 +239,11 @@ aws configure
 - **`pkg/containers`**: Docker container build framework with architecture optimization
 
 ### Key Features
+- **Batch Scheduling**: Systematic execution across time windows to avoid quota limits
+- **Microarchitecture Analysis**: Deep CPU and memory subsystem performance insights
 - **Statistical Rigor**: Confidence intervals, outlier detection, quality assessment
 - **NUMA Awareness**: Multi-socket system optimization and memory affinity
-- **Architecture Optimization**: Intel MKL, AMD BLIS, and GCC optimization pipelines  
+- **Architecture Optimization**: Intel MKL, AMD BLIS, ARM SVE optimization pipelines  
 - **Real-time Monitoring**: CloudWatch integration with custom metrics and alerting
 - **Quality Control**: Automated validation with statistical confidence requirements
 
@@ -242,7 +256,10 @@ We welcome community contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Tool improvements
 
 ### Running Benchmarks
-See our comprehensive [AWS Setup Guide](docs/AWS_SETUP.md) for detailed configuration instructions.
+See our comprehensive guides for detailed configuration instructions:
+- [AWS Setup Guide](docs/AWS_SETUP.md) - AWS configuration and permissions
+- [Batch Scheduling Guide](docs/BATCH_SCHEDULING.md) - Systematic execution over time
+- [Microarchitecture Benchmarks](docs/MICROARCHITECTURE_BENCHMARKS.md) - Deep performance analysis
 
 ```bash
 # Prerequisites: AWS CLI v2 configured with 'aws' profile

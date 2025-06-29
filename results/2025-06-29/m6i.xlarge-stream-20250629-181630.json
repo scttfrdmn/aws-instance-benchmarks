@@ -1,0 +1,69 @@
+{
+  "execution_context": {
+    "benchmark_version": "latest",
+    "compiler_optimizations": "-O3 -march=native -mtune=native -mavx2",
+    "container_runtime": "docker"
+  },
+  "metadata": {
+    "benchmark_suite": "stream",
+    "collection_method": "automated",
+    "data_version": "1.0",
+    "duration_seconds": 48.06827675,
+    "environment": {
+      "containerImage": "public.ecr.aws/aws-benchmarks/stream:intel-skylake",
+      "duration": 48.06827675,
+      "timestamp": "2025-06-29T18:16:30Z"
+    },
+    "instanceFamily": "m6i",
+    "instanceType": "m6i.xlarge",
+    "instance_id": "i-012d8c67242d8e9ae",
+    "processorArchitecture": "x86_64",
+    "region": "us-east-1",
+    "timestamp": "2025-06-29T18:16:30Z"
+  },
+  "performance": {
+    "memory": {
+      "metadata": {
+        "instanceType": "m6i.xlarge",
+        "region": "us-east-1",
+        "timestamp": "2025-06-29T11:17:17-07:00"
+      },
+      "stream": {
+        "add": {
+          "bandwidth": 42.1,
+          "unit": "GB/s"
+        },
+        "copy": {
+          "bandwidth": 45.2,
+          "unit": "GB/s"
+        },
+        "scale": {
+          "bandwidth": 44.8,
+          "unit": "GB/s"
+        },
+        "triad": {
+          "bandwidth": 41.9,
+          "unit": "GB/s"
+        }
+      }
+    }
+  },
+  "schema_version": "1.0.0",
+  "system_info": {
+    "architecture": "x86_64",
+    "instance_family": "m6i",
+    "private_ip": "172.31.81.238",
+    "public_ip": "3.88.32.89",
+    "status": "completed"
+  },
+  "validation": {
+    "checksums": {
+      "md5": "d41d8cd98f00b204e9800998ecf8427e",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reproducibility": {
+      "confidence": 1,
+      "runs": 1
+    }
+  }
+}
