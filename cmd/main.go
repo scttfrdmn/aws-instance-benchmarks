@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/aws"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/containers"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/discovery"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/monitoring"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/storage"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +32,16 @@ var (
 	ErrSecurityGroupRequired = errors.New("--security-group is required") 
 	ErrSubnetRequired       = errors.New("--subnet is required")
 )
+
+// benchmarkResult stores the results of individual benchmark runs for statistical analysis
+type benchmarkResult struct {
+	instanceType   string
+	benchmarkSuite string
+	iteration      int
+	success        bool
+	result         *aws.InstanceResult
+	metrics        monitoring.BenchmarkMetrics
+}
 
 func main() {
 	var rootCmd = &cobra.Command{
@@ -82,6 +94,7 @@ func main() {
 	var skipQuota bool
 	var benchmarkSuites []string
 	var maxConcurrency int
+	var iterations int
 
 	runCmd.Flags().StringSliceVar(&instanceTypes, "instance-types", []string{"m7i.large"}, "Instance types to benchmark")
 	runCmd.Flags().StringVar(&region, "region", "us-east-1", "AWS region")
@@ -89,8 +102,9 @@ func main() {
 	runCmd.Flags().StringVar(&securityGroup, "security-group", "", "Security group ID")
 	runCmd.Flags().StringVar(&subnet, "subnet", "", "Subnet ID")
 	runCmd.Flags().BoolVar(&skipQuota, "skip-quota-check", false, "Skip quota validation before launching")
-	runCmd.Flags().StringSliceVar(&benchmarkSuites, "benchmarks", []string{"stream"}, "Benchmark suites to run")
+	runCmd.Flags().StringSliceVar(&benchmarkSuites, "benchmarks", []string{"stream"}, "Benchmark suites to run (stream, hpl)")
 	runCmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 5, "Maximum number of concurrent benchmarks")
+	runCmd.Flags().IntVar(&iterations, "iterations", 1, "Number of benchmark iterations for statistical validation")
 
 	rootCmd.AddCommand(discoverCmd)
 	rootCmd.AddCommand(buildCmd)
@@ -208,6 +222,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	skipQuota, _ := cmd.Flags().GetBool("skip-quota-check")
 	benchmarkSuites, _ := cmd.Flags().GetStringSlice("benchmarks")
 	maxConcurrency, _ := cmd.Flags().GetInt("max-concurrency")
+	iterations, _ := cmd.Flags().GetInt("iterations")
 
 	// Validate required parameters
 	if keyPair == "" {
@@ -237,9 +252,19 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 		StorageClass:       "STANDARD",
 		DataVersion:        "1.0",
 	}
-	s3Storage, err := storage.NewS3Storage(ctx, storageConfig)
+	s3Storage, err := storage.NewS3Storage(ctx, storageConfig, region)
 	if err != nil {
 		return fmt.Errorf("failed to initialize S3 storage: %w", err)
+	}
+
+	// Initialize CloudWatch metrics collector
+	metricsCollector, err := monitoring.NewMetricsCollector(region)
+	if err != nil {
+		fmt.Printf("⚠️  Failed to initialize CloudWatch metrics: %v\n", err)
+		fmt.Println("   Continuing without metrics collection...")
+		metricsCollector = nil
+	} else {
+		fmt.Println("✅ CloudWatch metrics collection enabled")
 	}
 
 	registry, _ := cmd.Parent().PersistentFlags().GetString("registry")
@@ -255,38 +280,42 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	type benchmarkJob struct {
 		instanceType   string
 		benchmarkSuite string
+		iteration      int
 		config         aws.BenchmarkConfig
 	}
 
 	var jobs []benchmarkJob
 	for _, instanceType := range instanceTypes {
 		for _, benchmarkSuite := range benchmarkSuites {
-			containerImage := fmt.Sprintf("%s/%s:%s-%s", registry, namespace, benchmarkSuite, 
-				getContainerTagForInstance(instanceType))
+			for iteration := 1; iteration <= iterations; iteration++ {
+				containerImage := fmt.Sprintf("%s/%s:%s-%s", registry, namespace, benchmarkSuite, 
+					getContainerTagForInstance(instanceType))
 
-			config := aws.BenchmarkConfig{
-				InstanceType:    instanceType,
-				ContainerImage:  containerImage,
-				BenchmarkSuite:  benchmarkSuite,
-				Region:          region,
-				KeyPairName:     keyPair,
-				SecurityGroupID: securityGroup,
-				SubnetID:        subnet,
-				SkipQuotaCheck:  skipQuota,
-				MaxRetries:      3,
-				Timeout:         10 * time.Minute,
+				config := aws.BenchmarkConfig{
+					InstanceType:    instanceType,
+					ContainerImage:  containerImage,
+					BenchmarkSuite:  benchmarkSuite,
+					Region:          region,
+					KeyPairName:     keyPair,
+					SecurityGroupID: securityGroup,
+					SubnetID:        subnet,
+					SkipQuotaCheck:  skipQuota,
+					MaxRetries:      3,
+					Timeout:         10 * time.Minute,
+				}
+				
+				jobs = append(jobs, benchmarkJob{
+					instanceType:   instanceType,
+					benchmarkSuite: benchmarkSuite,
+					iteration:      iteration,
+					config:         config,
+				})
 			}
-			
-			jobs = append(jobs, benchmarkJob{
-				instanceType:   instanceType,
-				benchmarkSuite: benchmarkSuite,
-				config:         config,
-			})
 		}
 	}
 
-	fmt.Printf("Starting parallel benchmark run for %d jobs (%d instance types) in region %s\n", 
-		len(jobs), len(instanceTypes), region)
+	fmt.Printf("Starting parallel benchmark run for %d jobs (%d instance types, %d iterations) in region %s\n", 
+		len(jobs), len(instanceTypes), iterations, region)
 	fmt.Printf("Max concurrency: %d\n", maxConcurrency)
 
 	// Create semaphore to limit concurrency
@@ -297,6 +326,9 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	successCount := 0
 	failureCount := 0
 	startTime := time.Now()
+	
+	// Collect all results for statistical analysis
+	var allResults []benchmarkResult
 
 	// Execute benchmarks in parallel
 	for _, job := range jobs {
@@ -308,20 +340,119 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 			
-			fmt.Printf("🚀 Starting %s benchmark on %s...\n", j.benchmarkSuite, j.instanceType)
+			if iterations > 1 {
+				fmt.Printf("🚀 Starting %s benchmark on %s (iteration %d/%d)...\n", j.benchmarkSuite, j.instanceType, j.iteration, iterations)
+			} else {
+				fmt.Printf("🚀 Starting %s benchmark on %s...\n", j.benchmarkSuite, j.instanceType)
+			}
 			
+			benchmarkStartTime := time.Now()
 			result, err := orchestrator.RunBenchmark(ctx, j.config)
+			benchmarkEndTime := time.Now()
+			
+			// Prepare metrics for CloudWatch
+			benchmarkMetrics := monitoring.BenchmarkMetrics{
+				InstanceType:       j.instanceType,
+				InstanceFamily:     extractInstanceFamily(j.instanceType),
+				BenchmarkSuite:     j.benchmarkSuite,
+				Region:            region,
+				Success:           err == nil,
+				ExecutionDuration: benchmarkEndTime.Sub(benchmarkStartTime).Seconds(),
+				Timestamp:         benchmarkEndTime,
+			}
+			
 			if err != nil {
 				resultsMutex.Lock()
 				failureCount++
 				resultsMutex.Unlock()
 				
+				// Categorize error for metrics
 				if quotaErr, ok := err.(*aws.QuotaError); ok {
+					benchmarkMetrics.ErrorCategory = "quota"
 					fmt.Printf("⚠️  Skipped %s due to quota: %s\n", j.instanceType, quotaErr.Message)
-					return
+				} else {
+					benchmarkMetrics.ErrorCategory = "infrastructure"
+					fmt.Printf("❌ Failed %s benchmark on %s: %v\n", j.benchmarkSuite, j.instanceType, err)
 				}
-				fmt.Printf("❌ Failed %s benchmark on %s: %v\n", j.benchmarkSuite, j.instanceType, err)
+				
+				// Publish failure metrics
+				if metricsCollector != nil {
+					if publishErr := metricsCollector.PublishBenchmarkMetrics(ctx, benchmarkMetrics); publishErr != nil {
+						fmt.Printf("   ⚠️ Failed to publish failure metrics: %v\n", publishErr)
+					}
+				}
+				
+				// Store failed result for analysis
+				resultsMutex.Lock()
+				allResults = append(allResults, benchmarkResult{
+					instanceType:   j.instanceType,
+					benchmarkSuite: j.benchmarkSuite,
+					iteration:      j.iteration,
+					success:        false,
+					result:         nil,
+					metrics:        benchmarkMetrics,
+				})
+				resultsMutex.Unlock()
 				return
+			}
+
+			benchmarkDuration := result.EndTime.Sub(result.StartTime).Seconds()
+			benchmarkMetrics.BenchmarkDuration = benchmarkDuration
+			
+			// Extract performance metrics from benchmark results
+			if result.BenchmarkData != nil {
+				benchmarkMetrics.PerformanceMetrics = make(map[string]float64)
+				
+				// Extract benchmark-specific performance data
+				switch j.benchmarkSuite {
+				case "stream":
+					streamData := result.BenchmarkData
+					if triad, exists := streamData["triad_bandwidth"]; exists {
+						if triadVal, ok := triad.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["triad_bandwidth"] = triadVal
+						}
+					}
+					if copy, exists := streamData["copy_bandwidth"]; exists {
+						if copyVal, ok := copy.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["copy_bandwidth"] = copyVal
+						}
+					}
+					if scale, exists := streamData["scale_bandwidth"]; exists {
+						if scaleVal, ok := scale.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["scale_bandwidth"] = scaleVal
+						}
+					}
+					if add, exists := streamData["add_bandwidth"]; exists {
+						if addVal, ok := add.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["add_bandwidth"] = addVal
+						}
+					}
+				case "hpl":
+					hplData := result.BenchmarkData
+					if gflops, exists := hplData["gflops"]; exists {
+						if gflopsVal, ok := gflops.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["gflops"] = gflopsVal
+						}
+					}
+					if efficiency, exists := hplData["efficiency"]; exists {
+						if efficiencyVal, ok := efficiency.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["efficiency"] = efficiencyVal
+						}
+					}
+					if executionTime, exists := hplData["execution_time"]; exists {
+						if executionTimeVal, ok := executionTime.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["execution_time"] = executionTimeVal
+						}
+					}
+					if residual, exists := hplData["residual"]; exists {
+						if residualVal, ok := residual.(float64); ok {
+							benchmarkMetrics.PerformanceMetrics["residual"] = residualVal
+						}
+					}
+				}
+				
+				// Calculate quality score based on performance stability
+				benchmarkMetrics.QualityScore = calculateQualityScore(result.BenchmarkData)
 			}
 
 			fmt.Printf("✅ Completed %s benchmark on %s (took %v)\n", 
@@ -335,7 +466,25 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 				fmt.Printf("   Results stored successfully for %s\n", j.instanceType)
 			}
 			
+			// Publish success metrics to CloudWatch
+			if metricsCollector != nil {
+				if publishErr := metricsCollector.PublishBenchmarkMetrics(ctx, benchmarkMetrics); publishErr != nil {
+					fmt.Printf("   ⚠️ Failed to publish success metrics: %v\n", publishErr)
+				} else {
+					fmt.Printf("   📊 Metrics published to CloudWatch\n")
+				}
+			}
+			
+			// Store successful result for analysis
 			resultsMutex.Lock()
+			allResults = append(allResults, benchmarkResult{
+				instanceType:   j.instanceType,
+				benchmarkSuite: j.benchmarkSuite,
+				iteration:      j.iteration,
+				success:        true,
+				result:         result,
+				metrics:        benchmarkMetrics,
+			})
 			successCount++
 			resultsMutex.Unlock()
 		}(job)
@@ -345,6 +494,12 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	wg.Wait()
 	totalTime := time.Since(startTime)
 
+	// Perform statistical analysis if multiple iterations
+	if iterations > 1 {
+		fmt.Printf("\n📈 Statistical Analysis:\n")
+		performStatisticalAnalysis(allResults, iterations)
+	}
+
 	// Print summary report
 	fmt.Printf("\n📊 Benchmark Run Summary:\n")
 	fmt.Printf("   Total jobs: %d\n", len(jobs))
@@ -353,11 +508,29 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("   Total time: %v\n", totalTime)
 	fmt.Printf("   Average time per job: %v\n", totalTime/time.Duration(len(jobs)))
 	
+	var efficiency float64
 	if maxConcurrency > 1 {
 		sequentialTime := time.Duration(len(jobs)) * 48 * time.Second // Estimated 48s per benchmark
-		efficiency := float64(sequentialTime) / float64(totalTime) * 100
+		efficiency = float64(sequentialTime) / float64(totalTime) * 100
 		fmt.Printf("   Estimated speedup: %.1fx (%.0f%% efficiency)\n", 
 			float64(sequentialTime)/float64(totalTime), efficiency)
+	}
+
+	// Publish operational metrics to CloudWatch
+	if metricsCollector != nil {
+		operationalMetrics := monitoring.OperationalMetrics{
+			InstanceLaunchDuration: totalTime.Seconds() / float64(len(jobs)), // Average launch time
+			ActiveInstances:        0, // All instances terminated after benchmarks
+			FailureRate:           float64(failureCount) / float64(len(jobs)) * 100,
+			Region:               region,
+			Timestamp:            time.Now(),
+		}
+		
+		if publishErr := metricsCollector.PublishOperationalMetrics(ctx, operationalMetrics); publishErr != nil {
+			fmt.Printf("⚠️  Failed to publish operational metrics: %v\n", publishErr)
+		} else {
+			fmt.Printf("📈 Operational metrics published to CloudWatch\n")
+		}
 	}
 
 	fmt.Println("\n✅ Parallel benchmark execution completed!")
@@ -473,4 +646,360 @@ func getCompilerOptimizations(instanceType string) string {
 		return "-O3 -march=native -mtune=native -mprefer-avx128" // AMD optimizations
 	}
 	return "-O3 -march=native -mtune=native -mavx2" // Intel optimizations
+}
+
+func calculateQualityScore(benchmarkData interface{}) float64 {
+	// Default quality score for successful benchmarks
+	if benchmarkData == nil {
+		return 0.5
+	}
+	
+	if data, ok := benchmarkData.(map[string]interface{}); ok {
+		// Check if this is STREAM data
+		if _, hasTriad := data["triad_bandwidth"]; hasTriad {
+			return calculateSTREAMQualityScore(data)
+		}
+		
+		// Check if this is HPL data
+		if _, hasGFLOPS := data["gflops"]; hasGFLOPS {
+			return calculateHPLQualityScore(data)
+		}
+	}
+	
+	return 0.7 // Default score for other benchmark types
+}
+
+func performStatisticalAnalysis(allResults []benchmarkResult, iterations int) {
+	// Group results by instance type and benchmark suite
+	grouped := make(map[string][]benchmarkResult)
+	
+	for _, result := range allResults {
+		if result.success {
+			key := fmt.Sprintf("%s-%s", result.instanceType, result.benchmarkSuite)
+			grouped[key] = append(grouped[key], result)
+		}
+	}
+	
+	// Analyze each group
+	for key, results := range grouped {
+		if len(results) < 2 {
+			continue // Need at least 2 results for statistical analysis
+		}
+		
+		parts := strings.Split(key, "-")
+		instanceType := parts[0]
+		benchmarkSuite := parts[1]
+		
+		fmt.Printf("\n   %s on %s (%d successful runs):\n", benchmarkSuite, instanceType, len(results))
+		
+		if benchmarkSuite == "stream" {
+			analyzeSTREAMResults(results)
+		} else if benchmarkSuite == "hpl" {
+			analyzeHPLResults(results)
+		}
+	}
+}
+
+func analyzeSTREAMResults(results []benchmarkResult) {
+	var triadValues []float64
+	var copyValues []float64
+	var scaleValues []float64
+	var addValues []float64
+	
+	// Extract bandwidth values
+	for _, result := range results {
+		if result.result != nil && result.result.BenchmarkData != nil {
+			data := result.result.BenchmarkData
+			
+			// Check for nested STREAM data structure
+			if streamData, exists := data["stream"]; exists {
+				if streamMap, ok := streamData.(map[string]interface{}); ok {
+					// Extract triad bandwidth
+					if triad, exists := streamMap["triad"]; exists {
+						if triadMap, ok := triad.(map[string]interface{}); ok {
+							if bandwidth, exists := triadMap["bandwidth"]; exists {
+								if floatVal, ok := bandwidth.(float64); ok {
+									triadValues = append(triadValues, floatVal)
+								}
+							}
+						}
+					}
+					// Extract copy bandwidth  
+					if copy, exists := streamMap["copy"]; exists {
+						if copyMap, ok := copy.(map[string]interface{}); ok {
+							if bandwidth, exists := copyMap["bandwidth"]; exists {
+								if floatVal, ok := bandwidth.(float64); ok {
+									copyValues = append(copyValues, floatVal)
+								}
+							}
+						}
+					}
+					// Extract scale bandwidth
+					if scale, exists := streamMap["scale"]; exists {
+						if scaleMap, ok := scale.(map[string]interface{}); ok {
+							if bandwidth, exists := scaleMap["bandwidth"]; exists {
+								if floatVal, ok := bandwidth.(float64); ok {
+									scaleValues = append(scaleValues, floatVal)
+								}
+							}
+						}
+					}
+					// Extract add bandwidth
+					if add, exists := streamMap["add"]; exists {
+						if addMap, ok := add.(map[string]interface{}); ok {
+							if bandwidth, exists := addMap["bandwidth"]; exists {
+								if floatVal, ok := bandwidth.(float64); ok {
+									addValues = append(addValues, floatVal)
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			// Also check for flat structure (legacy support)
+			if val, exists := data["triad_bandwidth"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					triadValues = append(triadValues, floatVal)
+				}
+			}
+			if val, exists := data["copy_bandwidth"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					copyValues = append(copyValues, floatVal)
+				}
+			}
+			if val, exists := data["scale_bandwidth"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					scaleValues = append(scaleValues, floatVal)
+				}
+			}
+			if val, exists := data["add_bandwidth"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					addValues = append(addValues, floatVal)
+				}
+			}
+		}
+	}
+	
+	// Calculate and display statistics
+	if len(triadValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(triadValues)
+		confInt := calculateConfidenceInterval(triadValues, 0.95)
+		fmt.Printf("     Triad Bandwidth: %.2f ± %.2f GB/s (CV: %.1f%%, 95%% CI: %.2f-%.2f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+	
+	if len(copyValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(copyValues)
+		confInt := calculateConfidenceInterval(copyValues, 0.95)
+		fmt.Printf("     Copy Bandwidth:  %.2f ± %.2f GB/s (CV: %.1f%%, 95%% CI: %.2f-%.2f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+	
+	if len(scaleValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(scaleValues)
+		confInt := calculateConfidenceInterval(scaleValues, 0.95)
+		fmt.Printf("     Scale Bandwidth: %.2f ± %.2f GB/s (CV: %.1f%%, 95%% CI: %.2f-%.2f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+	
+	if len(addValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(addValues)
+		confInt := calculateConfidenceInterval(addValues, 0.95)
+		fmt.Printf("     Add Bandwidth:   %.2f ± %.2f GB/s (CV: %.1f%%, 95%% CI: %.2f-%.2f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+}
+
+func analyzeHPLResults(results []benchmarkResult) {
+	var gflopsValues []float64
+	var efficiencyValues []float64
+	var executionTimeValues []float64
+	
+	// Extract performance values
+	for _, result := range results {
+		if result.result != nil && result.result.BenchmarkData != nil {
+			data := result.result.BenchmarkData
+			if val, exists := data["gflops"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					gflopsValues = append(gflopsValues, floatVal)
+				}
+			}
+			if val, exists := data["efficiency"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					efficiencyValues = append(efficiencyValues, floatVal)
+				}
+			}
+			if val, exists := data["execution_time"]; exists {
+				if floatVal, ok := val.(float64); ok {
+					executionTimeValues = append(executionTimeValues, floatVal)
+				}
+			}
+		}
+	}
+	
+	// Calculate and display statistics
+	if len(gflopsValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(gflopsValues)
+		confInt := calculateConfidenceInterval(gflopsValues, 0.95)
+		fmt.Printf("     GFLOPS:          %.2f ± %.2f (CV: %.1f%%, 95%% CI: %.2f-%.2f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+	
+	if len(efficiencyValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(efficiencyValues)
+		confInt := calculateConfidenceInterval(efficiencyValues, 0.95)
+		fmt.Printf("     Efficiency:      %.3f ± %.3f (CV: %.1f%%, 95%% CI: %.3f-%.3f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+	
+	if len(executionTimeValues) > 0 {
+		mean, stdDev, cv := calculateStatistics(executionTimeValues)
+		confInt := calculateConfidenceInterval(executionTimeValues, 0.95)
+		fmt.Printf("     Execution Time:  %.2f ± %.2f s (CV: %.1f%%, 95%% CI: %.2f-%.2f)\n", 
+			mean, stdDev, cv, confInt.lower, confInt.upper)
+	}
+}
+
+func calculateStatistics(values []float64) (mean, stdDev, cv float64) {
+	if len(values) == 0 {
+		return 0, 0, 0
+	}
+	
+	// Calculate mean
+	sum := 0.0
+	for _, value := range values {
+		sum += value
+	}
+	mean = sum / float64(len(values))
+	
+	// Calculate standard deviation
+	sumSquares := 0.0
+	for _, value := range values {
+		diff := value - mean
+		sumSquares += diff * diff
+	}
+	variance := sumSquares / float64(len(values))
+	stdDev = math.Sqrt(variance)
+	
+	// Calculate coefficient of variation
+	if mean != 0 {
+		cv = (stdDev / mean) * 100
+	}
+	
+	return mean, stdDev, cv
+}
+
+type confidenceInterval struct {
+	lower, upper float64
+}
+
+func calculateConfidenceInterval(values []float64, confidence float64) confidenceInterval {
+	if len(values) < 2 {
+		return confidenceInterval{0, 0}
+	}
+	
+	mean, stdDev, _ := calculateStatistics(values)
+	n := float64(len(values))
+	
+	// Use t-distribution for small samples (simplified)
+	var tValue float64
+	switch {
+	case n >= 30:
+		tValue = 1.96 // Normal approximation for large samples
+	case n >= 10:
+		tValue = 2.26 // Approximate t-value for medium samples
+	default:
+		tValue = 3.18 // Conservative t-value for small samples
+	}
+	
+	margin := tValue * (stdDev / math.Sqrt(n))
+	
+	return confidenceInterval{
+		lower: mean - margin,
+		upper: mean + margin,
+	}
+}
+
+func calculateSTREAMQualityScore(streamData map[string]interface{}) float64 {
+	var bandwidths []float64
+	
+	// Collect bandwidth values
+	for _, key := range []string{"copy_bandwidth", "scale_bandwidth", "add_bandwidth", "triad_bandwidth"} {
+		if val, exists := streamData[key]; exists {
+			if floatVal, ok := val.(float64); ok && floatVal > 0 {
+				bandwidths = append(bandwidths, floatVal)
+			}
+		}
+	}
+	
+	if len(bandwidths) < 2 {
+		return 0.5 // Not enough data points
+	}
+	
+	// Calculate coefficient of variation (CV)
+	mean := 0.0
+	for _, bw := range bandwidths {
+		mean += bw
+	}
+	mean /= float64(len(bandwidths))
+	
+	variance := 0.0
+	for _, bw := range bandwidths {
+		variance += (bw - mean) * (bw - mean)
+	}
+	variance /= float64(len(bandwidths))
+	
+	if mean == 0 {
+		return 0.5
+	}
+	
+	cv := (variance / (mean * mean)) // Coefficient of variation squared
+	
+	// Convert CV to quality score (lower CV = higher quality)
+	qualityScore := 1.0 - (cv * 2.0)
+	if qualityScore < 0.0 {
+		qualityScore = 0.1
+	}
+	if qualityScore > 1.0 {
+		qualityScore = 1.0
+	}
+	
+	return qualityScore
+}
+
+func calculateHPLQualityScore(hplData map[string]interface{}) float64 {
+	qualityScore := 1.0
+	
+	// Check efficiency
+	if effVal, exists := hplData["efficiency"]; exists {
+		if efficiency, ok := effVal.(float64); ok {
+			if efficiency < 0.5 {
+				qualityScore -= 0.4 // Penalize low efficiency heavily
+			} else if efficiency < 0.7 {
+				qualityScore -= 0.2 // Moderate penalty
+			}
+		}
+	}
+	
+	// Check residual (numerical accuracy)
+	if residualVal, exists := hplData["residual"]; exists {
+		if residual, ok := residualVal.(float64); ok {
+			if residual > 1e-6 {
+				qualityScore -= 0.3 // Penalize poor numerical accuracy
+			} else if residual > 1e-9 {
+				qualityScore -= 0.1 // Small penalty for moderate accuracy
+			}
+		}
+	}
+	
+	// Ensure quality is in valid range
+	if qualityScore < 0.0 {
+		qualityScore = 0.1
+	}
+	if qualityScore > 1.0 {
+		qualityScore = 1.0
+	}
+	
+	return qualityScore
 }

@@ -274,9 +274,11 @@ type DateRange struct {
 //   - Request retry with exponential backoff
 //   - Optimal part size for multipart uploads
 //   - Regional endpoint selection for latency optimization
-func NewS3Storage(ctx context.Context, storageConfig Config) (*S3Storage, error) {
-	// Load AWS configuration with default settings
+func NewS3Storage(ctx context.Context, storageConfig Config, region string) (*S3Storage, error) {
+	// Load AWS configuration with default settings and aws profile
 	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithSharedConfigProfile("aws"), // Use 'aws' profile as specified
+		config.WithRegion(region), // Use the specified region
 		config.WithRetryMaxAttempts(storageConfig.RetryAttempts),
 	)
 	if err != nil {

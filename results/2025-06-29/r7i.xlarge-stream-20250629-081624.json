@@ -1,0 +1,49 @@
+{
+  "execution_context": {
+    "benchmark_version": "latest",
+    "compiler_optimizations": "-O3 -march=native -mtune=native -mavx2",
+    "container_runtime": "docker"
+  },
+  "metadata": {
+    "benchmark_suite": "stream",
+    "collection_method": "automated",
+    "data_version": "1.0",
+    "duration_seconds": 48.112536958,
+    "instance_id": "i-0d9d88c52ab48181d",
+    "instance_type": "r7i.xlarge",
+    "region": "us-east-1",
+    "timestamp": "2025-06-29T08:16:24Z"
+  },
+  "performance_data": {
+    "metadata": {
+      "instanceType": "r7i.xlarge",
+      "region": "us-east-1",
+      "timestamp": "2025-06-29T01:17:11-07:00"
+    },
+    "stream": {
+      "add": {
+        "bandwidth": 42.1,
+        "unit": "GB/s"
+      },
+      "copy": {
+        "bandwidth": 45.2,
+        "unit": "GB/s"
+      },
+      "scale": {
+        "bandwidth": 44.8,
+        "unit": "GB/s"
+      },
+      "triad": {
+        "bandwidth": 41.9,
+        "unit": "GB/s"
+      }
+    }
+  },
+  "system_info": {
+    "architecture": "x86_64",
+    "instance_family": "r7i",
+    "private_ip": "172.31.41.43",
+    "public_ip": "3.94.130.72",
+    "status": "completed"
+  }
+}

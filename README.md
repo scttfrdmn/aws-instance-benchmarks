@@ -71,13 +71,15 @@ go build -o aws-benchmark-collector ./cmd
     --architectures intel-icelake,amd-zen4,graviton3 \
     --benchmarks stream
 
-# Run benchmarks on AWS instances (requires AWS setup)
+# Run benchmarks with statistical validation (multiple iterations)
 ./aws-benchmark-collector run \
     --instance-types m7i.large,c7g.large \
     --region us-east-1 \
     --key-pair my-key-pair \
     --security-group sg-xxxxxxxxx \
-    --subnet subnet-xxxxxxxxx
+    --subnet subnet-xxxxxxxxx \
+    --benchmarks stream,hpl \
+    --iterations 5
 ```
 
 ### **Using the Data**
@@ -172,15 +174,36 @@ aws configure --profile aws
 # Build the CLI tool
 go build -o aws-benchmark-collector ./cmd
 
-# Run benchmarks (requires AWS infrastructure setup)
+# Run benchmarks with statistical validation (multiple iterations)
 ./aws-benchmark-collector run \
     --instance-types m7i.large,m7i.xlarge \
     --region us-east-1 \
     --key-pair my-key-pair \
     --security-group sg-xxxxxxxxx \
     --subnet subnet-xxxxxxxxx \
-    --benchmarks stream
+    --benchmarks stream,hpl \
+    --iterations 5
 ```
+
+### **New Features in Phase 2**
+
+#### Statistical Validation
+- **Multiple iterations** with confidence intervals and quality scoring
+- **CloudWatch integration** for real-time monitoring and alerting
+- **Advanced error handling** with quota management and capacity recovery
+- See [Statistical Validation Guide](docs/STATISTICAL_VALIDATION.md)
+
+#### Community Contributions
+- **Automated validation** workflow for community benchmark submissions
+- **GitHub Actions integration** with quality assessment and schema validation
+- **Contributor recognition** system with structured review process
+- See [Community Workflow Guide](docs/COMMUNITY_WORKFLOW.md)
+
+#### Monitoring and Observability
+- **CloudWatch metrics** for execution tracking and performance analysis
+- **Quality assessment** with coefficient of variation and efficiency scoring
+- **Cost tracking** and price-performance analysis
+- See [CloudWatch Integration Guide](docs/CLOUDWATCH_INTEGRATION.md)
 
 ## 📄 License
 

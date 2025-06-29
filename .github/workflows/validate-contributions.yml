@@ -1,0 +1,448 @@
+name: Validate Community Contributions
+
+on:
+  pull_request:
+    paths:
+      - 'data/contributions/**'
+      - 'data/raw/**'
+      - 'data/processed/**'
+  workflow_dispatch:
+
+jobs:
+  validate-contribution:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install validation tools
+      run: |
+        pip install jsonschema
+        
+    - name: Run community contribution validation
+      run: |
+        echo "🧪 Validating community contributions..."
+        
+        # Check if validation script exists
+        if [ -f "scripts/validate_contribution.sh" ]; then
+          chmod +x scripts/validate_contribution.sh
+        else
+          echo "⚠️  Validation script not found, creating basic validator..."
+          
+          # Create basic validation script
+          cat > validate_basic.py << 'EOF'
+import json
+import os
+import sys
+from pathlib import Path
+
+def validate_contribution_files():
+    """Validate all contribution files in the PR"""
+    
+    # Find JSON files in contribution areas
+    contribution_paths = [
+        "data/contributions",
+        "data/raw", 
+        "data/processed"
+    ]
+    
+    json_files = []
+    for path in contribution_paths:
+        if os.path.exists(path):
+            for file_path in Path(path).rglob("*.json"):
+                json_files.append(str(file_path))
+    
+    if not json_files:
+        print("✅ No contribution files to validate")
+        return True
+    
+    print(f"📋 Found {len(json_files)} JSON files to validate")
+    
+    valid_count = 0
+    for file_path in json_files:
+        print(f"\n🔍 Validating: {file_path}")
+        
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            # Basic validation
+            if validate_basic_structure(data, file_path):
+                valid_count += 1
+                print(f"   ✅ Valid")
+            else:
+                print(f"   ❌ Invalid")
+                
+        except json.JSONDecodeError as e:
+            print(f"   ❌ JSON parsing error: {e}")
+        except Exception as e:
+            print(f"   ❌ Validation error: {e}")
+    
+    print(f"\n📊 Validation Summary: {valid_count}/{len(json_files)} files valid")
+    return valid_count == len(json_files)
+
+def validate_basic_structure(data, file_path):
+    """Basic structure validation for benchmark data"""
+    
+    # Skip validation for non-benchmark files
+    if 'metadata.json' in file_path or 'config' in file_path.lower():
+        return True
+    
+    # Check for benchmark data structure
+    required_sections = []
+    
+    # Determine what's required based on content
+    if 'performance' in data:
+        required_sections.append('performance')
+    if 'metadata' in data:
+        required_sections.append('metadata')
+    
+    # For STREAM benchmark data
+    if 'stream' in str(data).lower():
+        if 'performance' not in data and 'stream' not in str(data):
+            print(f"   ⚠️  STREAM data should contain performance metrics")
+            return False
+    
+    # For instance metadata
+    if 'instanceType' in str(data):
+        instance_type = None
+        
+        # Find instance type in nested structure
+        def find_instance_type(obj, key='instanceType'):
+            if isinstance(obj, dict):
+                if key in obj:
+                    return obj[key]
+                for v in obj.values():
+                    result = find_instance_type(v, key)
+                    if result:
+                        return result
+            return None
+        
+        instance_type = find_instance_type(data)
+        if instance_type and '.' not in str(instance_type):
+            print(f"   ⚠️  Invalid instance type format: {instance_type}")
+            return False
+    
+    return True
+
+if __name__ == "__main__":
+    success = validate_contribution_files()
+    sys.exit(0 if success else 1)
+EOF
+          
+          python3 validate_basic.py
+        fi
+        
+    - name: Validate JSON schema compliance
+      run: |
+        echo "📋 Checking JSON Schema compliance..."
+        
+        python3 << 'EOF'
+import json
+import os
+from pathlib import Path
+
+def check_schema_compliance():
+    """Check if contribution files follow expected schemas"""
+    
+    schema_file = "data/schemas/benchmark-result.json"
+    if not os.path.exists(schema_file):
+        print("⚠️  No schema file found, skipping detailed validation")
+        return True
+    
+    print(f"✅ Schema file found: {schema_file}")
+    
+    # Find contribution files
+    contribution_files = []
+    for path in ["data/contributions", "data/raw"]:
+        if os.path.exists(path):
+            for file_path in Path(path).rglob("*.json"):
+                # Skip metadata and config files
+                if 'metadata' not in str(file_path) and 'config' not in str(file_path):
+                    contribution_files.append(str(file_path))
+    
+    if not contribution_files:
+        print("✅ No contribution files found to validate against schema")
+        return True
+    
+    print(f"📁 Found {len(contribution_files)} files to check against schema")
+    
+    # Basic schema compliance check
+    for file_path in contribution_files:
+        print(f"🔍 Checking: {file_path}")
+        
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            # Check for reasonable structure
+            has_metadata = 'metadata' in data
+            has_performance = 'performance' in data
+            has_validation = 'validation' in data
+            
+            if has_metadata or has_performance:
+                print(f"   ✅ Has expected structure sections")
+            else:
+                print(f"   ⚠️  May not follow expected schema structure")
+                
+        except Exception as e:
+            print(f"   ❌ Error checking schema: {e}")
+    
+    return True
+
+check_schema_compliance()
+EOF
+
+    - name: Check for duplicate data
+      run: |
+        echo "🔍 Checking for duplicate submissions..."
+        
+        python3 << 'EOF'
+import json
+import os
+from pathlib import Path
+from collections import defaultdict
+
+def check_duplicates():
+    """Check for duplicate benchmark submissions"""
+    
+    # Collect all instance types from contribution files
+    instance_data = defaultdict(list)
+    
+    for path in ["data/contributions", "data/raw", "data/processed"]:
+        if os.path.exists(path):
+            for file_path in Path(path).rglob("*.json"):
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Find instance type in the data
+                    instance_type = None
+                    
+                    def find_instance_type(obj):
+                        if isinstance(obj, dict):
+                            if 'instanceType' in obj:
+                                return obj['instanceType']
+                            if 'instance_type' in obj:
+                                return obj['instance_type']
+                            for v in obj.values():
+                                result = find_instance_type(v)
+                                if result:
+                                    return result
+                        return None
+                    
+                    instance_type = find_instance_type(data)
+                    if instance_type:
+                        instance_data[instance_type].append(str(file_path))
+                
+                except:
+                    continue
+    
+    # Check for duplicates
+    duplicates_found = False
+    for instance_type, files in instance_data.items():
+        if len(files) > 1:
+            print(f"⚠️  Multiple submissions for {instance_type}:")
+            for file_path in files:
+                print(f"   - {file_path}")
+            duplicates_found = True
+    
+    if not duplicates_found:
+        print("✅ No duplicate submissions detected")
+    
+    return True
+
+check_duplicates()
+EOF
+
+    - name: Statistical quality check
+      run: |
+        echo "📊 Performing statistical quality assessment..."
+        
+        python3 << 'EOF'
+import json
+import os
+from pathlib import Path
+
+def quality_assessment():
+    """Assess the quality of submitted benchmark data"""
+    
+    contribution_files = []
+    for path in ["data/contributions", "data/raw"]:
+        if os.path.exists(path):
+            for file_path in Path(path).rglob("*.json"):
+                if 'metadata' not in str(file_path):
+                    contribution_files.append(str(file_path))
+    
+    if not contribution_files:
+        print("✅ No contribution files to assess")
+        return True
+    
+    total_score = 0
+    file_count = 0
+    
+    for file_path in contribution_files:
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            score = assess_file_quality(data, file_path)
+            total_score += score
+            file_count += 1
+            
+        except Exception as e:
+            print(f"⚠️  Could not assess {file_path}: {e}")
+    
+    if file_count > 0:
+        avg_score = total_score / file_count
+        print(f"\n📊 Average Quality Score: {avg_score:.2f}/1.00")
+        
+        if avg_score >= 0.8:
+            print("✅ Excellent data quality")
+        elif avg_score >= 0.6:
+            print("⚠️  Good data quality with some concerns")
+        else:
+            print("❌ Data quality needs improvement")
+            return False
+    
+    return True
+
+def assess_file_quality(data, file_path):
+    """Assess quality of individual file"""
+    score = 1.0
+    print(f"\n🔍 Assessing: {file_path}")
+    
+    # Check for STREAM consistency
+    if 'stream' in str(data).lower():
+        stream_data = None
+        
+        # Find STREAM data in nested structure
+        def find_stream_data(obj):
+            if isinstance(obj, dict):
+                if 'stream' in obj:
+                    return obj['stream']
+                for v in obj.values():
+                    result = find_stream_data(v)
+                    if result:
+                        return result
+            return None
+        
+        stream_data = find_stream_data(data)
+        if stream_data:
+            bandwidths = []
+            for test in ['copy', 'scale', 'add', 'triad']:
+                if test in stream_data:
+                    bw_data = stream_data[test]
+                    if isinstance(bw_data, dict) and 'bandwidth' in bw_data:
+                        bandwidths.append(bw_data['bandwidth'])
+                    elif isinstance(bw_data, (int, float)):
+                        bandwidths.append(bw_data)
+            
+            if len(bandwidths) >= 2:
+                mean_bw = sum(bandwidths) / len(bandwidths)
+                max_dev = max(abs(bw - mean_bw) for bw in bandwidths)
+                cv = (max_dev / mean_bw) * 100 if mean_bw > 0 else 100
+                
+                if cv > 15:
+                    score -= 0.3
+                    print(f"   ⚠️  High bandwidth variation: {cv:.1f}%")
+                elif cv > 10:
+                    score -= 0.1
+                    print(f"   ⚠️  Moderate bandwidth variation: {cv:.1f}%")
+                else:
+                    print(f"   ✅ Good bandwidth consistency: {cv:.1f}%")
+    
+    # Check for validation info
+    if 'validation' in data or 'reproducibility' in str(data):
+        print("   ✅ Contains validation information")
+    else:
+        score -= 0.1
+        print("   ⚠️  Missing validation information")
+    
+    print(f"   📊 Quality Score: {score:.2f}")
+    return score
+
+quality_assessment()
+EOF
+
+    - name: Generate PR review checklist
+      run: |
+        echo "📝 Generating PR review checklist..."
+        
+        cat > pr_review_checklist.md << 'EOF'
+## 📋 Community Contribution Review Checklist
+
+### ✅ Automated Checks
+- [x] JSON format validation
+- [x] Schema compliance check  
+- [x] Duplicate detection
+- [x] Statistical quality assessment
+
+### 👥 Manual Review Required
+
+#### Data Quality
+- [ ] **Methodology**: Contribution follows documented benchmark methodology
+- [ ] **Reproducibility**: Multiple runs with statistical validation
+- [ ] **Architecture**: Appropriate optimizations for instance type
+- [ ] **Environment**: Complete metadata including compiler, OS, container details
+
+#### Technical Review  
+- [ ] **Performance Values**: Results are reasonable for instance type and architecture
+- [ ] **Consistency**: STREAM bandwidth values show good consistency (CV < 10%)
+- [ ] **Completeness**: All required benchmark metrics present
+- [ ] **Integration**: Data format compatible with API endpoints
+
+#### Community Standards
+- [ ] **Attribution**: Contributor information properly included
+- [ ] **License**: Contribution follows project license (CC BY 4.0 for data)
+- [ ] **Documentation**: Any new instance types properly documented
+- [ ] **Validation**: Checksums and validation data included
+
+### 🚀 Approval Criteria
+- [ ] All automated checks pass
+- [ ] Manual review completed by maintainer
+- [ ] Data quality score ≥ 0.7
+- [ ] No duplicate submissions without justification
+- [ ] Contribution enhances the dataset value
+
+### 📝 Reviewer Notes
+<!-- Add any specific notes about this contribution -->
+
+---
+*This checklist was automatically generated by the contribution validation workflow.*
+EOF
+
+        echo "✅ Review checklist generated: pr_review_checklist.md"
+        
+    - name: Provide contributor feedback
+      run: |
+        echo "📢 Generating contributor feedback..."
+        
+        echo "## 🎉 Thank you for your contribution to AWS Instance Benchmarks!"
+        echo ""
+        echo "Your benchmark data submission has been automatically validated."
+        echo "A project maintainer will review your contribution and provide feedback within 3-5 days."
+        echo ""
+        echo "### 🔍 Validation Results"
+        echo "- ✅ JSON format validation passed"
+        echo "- ✅ Basic schema compliance checked"
+        echo "- ✅ Statistical quality assessment completed"
+        echo "- ✅ Duplicate detection performed"
+        echo ""
+        echo "### 📚 Additional Resources"
+        echo "- [Contributing Guidelines](CONTRIBUTING.md)"
+        echo "- [Data Format Documentation](docs/DATA_FORMAT.md)"
+        echo "- [Community Discussion](https://github.com/scttfrdmn/aws-instance-benchmarks/discussions)"
+        echo ""
+        echo "### 🤝 What's Next?"
+        echo "1. Manual review by project maintainer"
+        echo "2. Integration testing with existing dataset"
+        echo "3. Approval and merge into main dataset"
+        echo "4. Publication in next data release"
+        echo ""
+        echo "Thank you for helping build the industry's most comprehensive AWS performance database! 🚀"

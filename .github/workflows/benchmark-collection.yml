@@ -46,17 +46,158 @@ jobs:
         go build -o aws-benchmark-collector cmd/main.go
         chmod +x aws-benchmark-collector
         
+    - name: Discover AWS infrastructure
+      id: infrastructure
+      run: |
+        echo "Discovering AWS infrastructure..."
+        
+        # Find default VPC
+        DEFAULT_VPC=$(aws ec2 describe-vpcs \
+          --filters "Name=isDefault,Values=true" \
+          --query "Vpcs[0].VpcId" \
+          --output text)
+        
+        if [ "$DEFAULT_VPC" = "None" ]; then
+          # Find first available VPC if no default
+          DEFAULT_VPC=$(aws ec2 describe-vpcs \
+            --query "Vpcs[0].VpcId" \
+            --output text)
+        fi
+        
+        # Find public subnet in the VPC
+        PUBLIC_SUBNET=$(aws ec2 describe-subnets \
+          --filters "Name=vpc-id,Values=$DEFAULT_VPC" "Name=map-public-ip-on-launch,Values=true" \
+          --query "Subnets[0].SubnetId" \
+          --output text)
+        
+        if [ "$PUBLIC_SUBNET" = "None" ]; then
+          # Find any subnet in the VPC
+          PUBLIC_SUBNET=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$DEFAULT_VPC" \
+            --query "Subnets[0].SubnetId" \
+            --output text)
+        fi
+        
+        # Check for existing security group or create one
+        SECURITY_GROUP=$(aws ec2 describe-security-groups \
+          --filters "Name=group-name,Values=benchmark-security-group" "Name=vpc-id,Values=$DEFAULT_VPC" \
+          --query "SecurityGroups[0].GroupId" \
+          --output text 2>/dev/null || echo "None")
+        
+        if [ "$SECURITY_GROUP" = "None" ]; then
+          echo "Creating security group..."
+          SECURITY_GROUP=$(aws ec2 create-security-group \
+            --group-name benchmark-security-group \
+            --description "Security group for AWS benchmark instances" \
+            --vpc-id $DEFAULT_VPC \
+            --query "GroupId" \
+            --output text)
+          
+          # Allow SSH access and all outbound traffic
+          aws ec2 authorize-security-group-ingress \
+            --group-id $SECURITY_GROUP \
+            --protocol tcp \
+            --port 22 \
+            --cidr 0.0.0.0/0 || true
+        fi
+        
+        # Check for existing key pair or create one
+        KEY_PAIR="aws-benchmarks-keypair-$(date +%Y%m)"
+        aws ec2 describe-key-pairs --key-names $KEY_PAIR >/dev/null 2>&1 || {
+          echo "Creating key pair..."
+          aws ec2 create-key-pair --key-name $KEY_PAIR --query "KeyMaterial" --output text > /tmp/key.pem
+          chmod 600 /tmp/key.pem
+        }
+        
+        echo "vpc_id=$DEFAULT_VPC" >> $GITHUB_OUTPUT
+        echo "subnet_id=$PUBLIC_SUBNET" >> $GITHUB_OUTPUT
+        echo "security_group_id=$SECURITY_GROUP" >> $GITHUB_OUTPUT
+        echo "key_pair_name=$KEY_PAIR" >> $GITHUB_OUTPUT
+        
+        echo "✅ Infrastructure discovered:"
+        echo "  VPC: $DEFAULT_VPC"
+        echo "  Subnet: $PUBLIC_SUBNET"
+        echo "  Security Group: $SECURITY_GROUP"
+        echo "  Key Pair: $KEY_PAIR"
+
     - name: Execute benchmark collection
       env:
         INSTANCE_TYPES: ${{ github.event.inputs.instance_types || 'm7i.large,c7i.large,r7i.large,m7g.large,c7g.large' }}
       run: |
         echo "Starting benchmark collection..."
         echo "Instance types: $INSTANCE_TYPES"
+        echo "Infrastructure:"
+        echo "  VPC: ${{ steps.infrastructure.outputs.vpc_id }}"
+        echo "  Subnet: ${{ steps.infrastructure.outputs.subnet_id }}"
+        echo "  Security Group: ${{ steps.infrastructure.outputs.security_group_id }}"
+        echo "  Key Pair: ${{ steps.infrastructure.outputs.key_pair_name }}"
         
-        # This is a simplified version - full implementation would include:
-        # - VPC/subnet discovery
-        # - Key pair creation
-        # - Actual benchmark execution
-        # - Result processing
+        # Execute benchmarks with discovered infrastructure
+        ./aws-benchmark-collector run \
+          --instance-types $INSTANCE_TYPES \
+          --region $AWS_REGION \
+          --key-pair ${{ steps.infrastructure.outputs.key_pair_name }} \
+          --security-group ${{ steps.infrastructure.outputs.security_group_id }} \
+          --subnet ${{ steps.infrastructure.outputs.subnet_id }} \
+          --max-concurrency 3 \
+          --benchmarks stream
         
-        echo "✅ Benchmark collection workflow configured"
+        echo "✅ Benchmark collection completed"
+
+    - name: Process and upload results
+      if: success()
+      run: |
+        echo "Processing benchmark results..."
+        
+        # Check if benchmark results exist
+        if [ -f "data/processed/latest/memory-benchmarks.json" ]; then
+          echo "Benchmark results found, validating data..."
+          
+          # Validate JSON format
+          python3 -m json.tool data/processed/latest/memory-benchmarks.json > /dev/null
+          if [ $? -eq 0 ]; then
+            echo "✅ JSON validation passed"
+          else
+            echo "❌ JSON validation failed"
+            exit 1
+          fi
+          
+          # Commit and push results
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add data/processed/latest/
+          git add data/raw/ || true  # May not exist
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update benchmark data from automated collection
+
+Instance types: $INSTANCE_TYPES
+Region: $AWS_REGION
+Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+            
+            git push
+            echo "✅ Results committed and pushed"
+          fi
+        else
+          echo "⚠️ No benchmark results found"
+        fi
+
+    - name: Cleanup resources
+      if: always()
+      run: |
+        echo "Cleaning up temporary resources..."
+        
+        # Clean up any temporary key files
+        rm -f /tmp/key.pem || true
+        
+        # Note: Instances should be automatically terminated by the collector
+        # Security groups and key pairs are kept for reuse
+        
+        echo "✅ Cleanup completed"

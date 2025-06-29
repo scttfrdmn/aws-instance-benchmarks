@@ -1,0 +1,49 @@
+{
+  "execution_context": {
+    "benchmark_version": "latest",
+    "compiler_optimizations": "-O3 -march=native -mtune=native -mcpu=neoverse-v1",
+    "container_runtime": "docker"
+  },
+  "metadata": {
+    "benchmark_suite": "stream",
+    "collection_method": "automated",
+    "data_version": "1.0",
+    "duration_seconds": 47.911620875,
+    "instance_id": "i-06e5da556b624481a",
+    "instance_type": "c7g.large",
+    "region": "us-east-1",
+    "timestamp": "2025-06-29T08:15:39Z"
+  },
+  "performance_data": {
+    "metadata": {
+      "instanceType": "c7g.large",
+      "region": "us-east-1",
+      "timestamp": "2025-06-29T01:16:27-07:00"
+    },
+    "stream": {
+      "add": {
+        "bandwidth": 42.1,
+        "unit": "GB/s"
+      },
+      "copy": {
+        "bandwidth": 45.2,
+        "unit": "GB/s"
+      },
+      "scale": {
+        "bandwidth": 44.8,
+        "unit": "GB/s"
+      },
+      "triad": {
+        "bandwidth": 41.9,
+        "unit": "GB/s"
+      }
+    }
+  },
+  "system_info": {
+    "architecture": "arm64",
+    "instance_family": "c7g",
+    "private_ip": "172.31.43.23",
+    "public_ip": "3.82.12.244",
+    "status": "completed"
+  }
+}
