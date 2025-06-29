@@ -22,6 +22,7 @@ import (
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/containers"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/discovery"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/monitoring"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/pricing"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/schema"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/storage"
 	"github.com/spf13/cobra"
@@ -137,10 +138,26 @@ func main() {
 	schemaCmd.AddCommand(validateCmd)
 	schemaCmd.AddCommand(migrateCmd)
 
+	var analyzeCmd = &cobra.Command{
+		Use:   "analyze [results-directory]",
+		Short: "Analyze benchmark results with price/performance calculations",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runAnalyze,
+	}
+
+	var baselineInstance string
+	var outputFormat string
+	var sortByMetric string
+
+	analyzeCmd.Flags().StringVar(&baselineInstance, "baseline", "m7i.large", "Baseline instance for normalization")
+	analyzeCmd.Flags().StringVar(&outputFormat, "format", "table", "Output format: table, json, csv")
+	analyzeCmd.Flags().StringVar(&sortByMetric, "sort", "value_score", "Sort by: value_score, cost_efficiency, performance, price")
+
 	rootCmd.AddCommand(discoverCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(schemaCmd)
+	rootCmd.AddCommand(analyzeCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
@@ -1315,4 +1332,335 @@ func extractVersionFromFile(data map[string]interface{}) (schema.SchemaVersion, 
 	
 	// Default to 1.0.0 for legacy data
 	return schema.SchemaVersion{Major: 1, Minor: 0, Patch: 0}, nil
+}
+
+func runAnalyze(cmd *cobra.Command, args []string) error {
+	resultsDir := args[0]
+	baselineInstance, _ := cmd.Flags().GetString("baseline")
+	outputFormat, _ := cmd.Flags().GetString("format")
+	sortByMetric, _ := cmd.Flags().GetString("sort")
+
+	ctx := context.Background()
+
+	fmt.Printf("📊 Analyzing benchmark results in: %s\n", resultsDir)
+	fmt.Printf("📏 Using baseline: %s\n", baselineInstance)
+
+	// Load all benchmark results
+	results, err := loadBenchmarkResults(resultsDir)
+	if err != nil {
+		return fmt.Errorf("failed to load results: %w", err)
+	}
+
+	if len(results) == 0 {
+		fmt.Println("❌ No benchmark results found")
+		return nil
+	}
+
+	fmt.Printf("📁 Loaded %d benchmark results\n", len(results))
+
+	// Set up baseline for price/performance calculations
+	baseline, err := setupBaseline(ctx, baselineInstance, results)
+	if err != nil {
+		return fmt.Errorf("failed to setup baseline: %w", err)
+	}
+
+	fmt.Printf("💰 Baseline: %s at $%.4f/hour, %.1f GB/s\n", 
+		baseline.InstanceType, baseline.HourlyPrice, baseline.TriadBandwidth)
+
+	// Calculate price/performance for all results
+	calculator := pricing.NewPricePerformanceCalculator(baseline)
+	analysisResults, err := calculatePricePerformanceForResults(ctx, calculator, results)
+	if err != nil {
+		return fmt.Errorf("failed to calculate price/performance: %w", err)
+	}
+
+	// Sort results
+	sortAnalysisResults(analysisResults, sortByMetric)
+
+	// Display results
+	return displayAnalysisResults(analysisResults, outputFormat)
+}
+
+func loadBenchmarkResults(resultsDir string) ([]benchmarkFileResult, error) {
+	var results []benchmarkFileResult
+
+	err := filepath.Walk(resultsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !strings.HasSuffix(path, ".json") {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Printf("⚠️  Failed to read %s: %v\n", path, err)
+			return nil
+		}
+
+		var rawData map[string]interface{}
+		if err := json.Unmarshal(data, &rawData); err != nil {
+			fmt.Printf("⚠️  Failed to parse %s: %v\n", path, err)
+			return nil
+		}
+
+		result := extractBenchmarkData(rawData, path)
+		if result != nil {
+			results = append(results, *result)
+		}
+
+		return nil
+	})
+
+	return results, err
+}
+
+type benchmarkFileResult struct {
+	FilePath     string
+	InstanceType string
+	Region       string
+	Timestamp    string
+	Metrics      *pricing.PerformanceMetrics
+}
+
+func extractBenchmarkData(data map[string]interface{}, filePath string) *benchmarkFileResult {
+	// Extract metadata
+	metadata, _ := data["metadata"].(map[string]interface{})
+	performanceData, _ := data["performance_data"].(map[string]interface{})
+
+	if metadata == nil && performanceData == nil {
+		return nil
+	}
+
+	// Get instance type
+	instanceType := extractStringValue(metadata, "instance_type")
+	if instanceType == "" {
+		instanceType = extractStringValue(metadata, "instanceType")
+	}
+	if instanceType == "" {
+		// Try to extract from filename
+		parts := strings.Split(filepath.Base(filePath), "-")
+		if len(parts) >= 2 {
+			instanceType = parts[0]
+		}
+	}
+
+	// Get region
+	region := extractStringValue(metadata, "region")
+	if region == "" {
+		region = "us-east-1" // Default
+	}
+
+	// Get timestamp
+	timestamp := extractStringValue(metadata, "timestamp")
+
+	// Extract STREAM performance data
+	streamData, _ := performanceData["stream"].(map[string]interface{})
+	if streamData == nil {
+		return nil
+	}
+
+	metrics := &pricing.PerformanceMetrics{
+		TriadBandwidth: extractBandwidthValue(streamData, "triad"),
+		CopyBandwidth:  extractBandwidthValue(streamData, "copy"),
+		ScaleBandwidth: extractBandwidthValue(streamData, "scale"),
+		AddBandwidth:   extractBandwidthValue(streamData, "add"),
+	}
+
+	// Skip if no valid metrics
+	if metrics.TriadBandwidth == 0 {
+		return nil
+	}
+
+	return &benchmarkFileResult{
+		FilePath:     filePath,
+		InstanceType: instanceType,
+		Region:       region,
+		Timestamp:    timestamp,
+		Metrics:      metrics,
+	}
+}
+
+func extractStringValue(data map[string]interface{}, key string) string {
+	if data == nil {
+		return ""
+	}
+	if val, ok := data[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+func extractBandwidthValue(streamData map[string]interface{}, test string) float64 {
+	if streamData == nil {
+		return 0
+	}
+
+	testData, ok := streamData[test].(map[string]interface{})
+	if !ok {
+		return 0
+	}
+
+	if bandwidth, ok := testData["bandwidth"].(float64); ok {
+		return bandwidth
+	}
+
+	return 0
+}
+
+func setupBaseline(ctx context.Context, baselineInstance string, results []benchmarkFileResult) (*pricing.PricePerformanceMetrics, error) {
+	// Find baseline instance in results
+	for _, result := range results {
+		if result.InstanceType == baselineInstance {
+			calculator := pricing.NewPricePerformanceCalculator(nil)
+			return calculator.CalculatePricePerformance(ctx, result.InstanceType, result.Region, result.Metrics)
+		}
+	}
+
+	// If not found in results, use default baseline
+	return pricing.GetDefaultBaseline(ctx)
+}
+
+func calculatePricePerformanceForResults(ctx context.Context, calculator *pricing.PricePerformanceCalculator, results []benchmarkFileResult) ([]*pricing.PricePerformanceMetrics, error) {
+	var analysisResults []*pricing.PricePerformanceMetrics
+
+	for _, result := range results {
+		analysis, err := calculator.CalculatePricePerformance(ctx, result.InstanceType, result.Region, result.Metrics)
+		if err != nil {
+			fmt.Printf("⚠️  Failed to analyze %s: %v\n", result.InstanceType, err)
+			continue
+		}
+
+		analysisResults = append(analysisResults, analysis)
+	}
+
+	return analysisResults, nil
+}
+
+func sortAnalysisResults(results []*pricing.PricePerformanceMetrics, sortBy string) {
+	switch sortBy {
+	case "value_score":
+		// Sort by value score (higher is better)
+		for i := 0; i < len(results)-1; i++ {
+			for j := i + 1; j < len(results); j++ {
+				if results[i].ValueScore < results[j].ValueScore {
+					results[i], results[j] = results[j], results[i]
+				}
+			}
+		}
+	case "cost_efficiency":
+		// Sort by cost efficiency ratio (higher is better)
+		for i := 0; i < len(results)-1; i++ {
+			for j := i + 1; j < len(results); j++ {
+				if results[i].CostEfficiencyRatio < results[j].CostEfficiencyRatio {
+					results[i], results[j] = results[j], results[i]
+				}
+			}
+		}
+	case "performance":
+		// Sort by performance ratio (higher is better)
+		for i := 0; i < len(results)-1; i++ {
+			for j := i + 1; j < len(results); j++ {
+				if results[i].PerformanceRatio < results[j].PerformanceRatio {
+					results[i], results[j] = results[j], results[i]
+				}
+			}
+		}
+	case "price":
+		// Sort by hourly price (lower is better)
+		for i := 0; i < len(results)-1; i++ {
+			for j := i + 1; j < len(results); j++ {
+				if results[i].HourlyPrice > results[j].HourlyPrice {
+					results[i], results[j] = results[j], results[i]
+				}
+			}
+		}
+	}
+}
+
+func displayAnalysisResults(results []*pricing.PricePerformanceMetrics, format string) error {
+	if len(results) == 0 {
+		fmt.Println("❌ No analysis results to display")
+		return nil
+	}
+
+	switch format {
+	case "json":
+		return displayJSON(results)
+	case "csv":
+		return displayCSV(results)
+	default:
+		return displayTable(results)
+	}
+}
+
+func displayTable(results []*pricing.PricePerformanceMetrics) error {
+	fmt.Printf("\n📊 Price/Performance Analysis Results\n")
+	fmt.Printf("🏆 Baseline: %s (Score: 1.00)\n\n", results[0].BaselineInstance)
+
+	// Header
+	fmt.Printf("%-15s %-8s %-8s %-10s %-8s %-8s %-10s %-12s\n",
+		"Instance", "Price/Hr", "GB/s", "$/GB/s", "Perf", "Cost Eff", "Value", "Ranking")
+	fmt.Printf("%-15s %-8s %-8s %-10s %-8s %-8s %-10s %-12s\n",
+		strings.Repeat("-", 15), strings.Repeat("-", 8), strings.Repeat("-", 8),
+		strings.Repeat("-", 10), strings.Repeat("-", 8), strings.Repeat("-", 8),
+		strings.Repeat("-", 10), strings.Repeat("-", 12))
+
+	// Results
+	for i, result := range results {
+		ranking := getRankingEmoji(i + 1)
+		fmt.Printf("%-15s $%-7.4f %-8.1f $%-9.4f %-8.2fx %-8.2fx %-10.2f %s\n",
+			result.InstanceType,
+			result.HourlyPrice,
+			result.TriadBandwidth,
+			result.PricePerGBps,
+			result.PerformanceRatio,
+			result.CostEfficiencyRatio,
+			result.ValueScore,
+			ranking)
+	}
+
+	fmt.Printf("\n💡 Value Score = Performance Ratio × Cost Efficiency Ratio\n")
+	fmt.Printf("   Higher values indicate better price/performance\n")
+
+	return nil
+}
+
+func displayJSON(results []*pricing.PricePerformanceMetrics) error {
+	output, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func displayCSV(results []*pricing.PricePerformanceMetrics) error {
+	fmt.Println("instance_type,region,hourly_price,triad_bandwidth,price_per_gbps,performance_ratio,cost_efficiency_ratio,value_score")
+	for _, result := range results {
+		fmt.Printf("%s,%s,%.4f,%.1f,%.4f,%.2f,%.2f,%.2f\n",
+			result.InstanceType,
+			result.Region,
+			result.HourlyPrice,
+			result.TriadBandwidth,
+			result.PricePerGBps,
+			result.PerformanceRatio,
+			result.CostEfficiencyRatio,
+			result.ValueScore)
+	}
+	return nil
+}
+
+func getRankingEmoji(rank int) string {
+	switch rank {
+	case 1:
+		return "🥇 #1"
+	case 2:
+		return "🥈 #2"
+	case 3:
+		return "🥉 #3"
+	default:
+		return fmt.Sprintf("   #%d", rank)
+	}
 }

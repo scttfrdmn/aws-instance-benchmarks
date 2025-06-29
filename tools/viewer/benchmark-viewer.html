@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Instance Benchmarks Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .controls h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .file-input-container {
+            margin-bottom: 1rem;
+        }
+        
+        .file-input {
+            padding: 0.5rem;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-right: 1rem;
+            transition: background 0.3s;
+        }
+        
+        .button:hover {
+            background: #5a6fd8;
+        }
+        
+        .button.secondary {
+            background: #6c757d;
+        }
+        
+        .button.secondary:hover {
+            background: #5a6268;
+        }
+        
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #555;
+        }
+        
+        .filter-group select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .results {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .results-header {
+            background: #f8f9fa;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .results-header h3 {
+            color: #333;
+        }
+        
+        .summary-stats {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .results-table th {
+            background: #667eea;
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .results-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #eee;
+            white-space: nowrap;
+        }
+        
+        .results-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .metric-unit {
+            color: #666;
+            font-size: 0.9rem;
+            margin-left: 0.25rem;
+        }
+        
+        .ranking {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .ranking.rank-1 { background: #ffd700; color: #333; }
+        .ranking.rank-2 { background: #c0c0c0; color: #333; }
+        .ranking.rank-3 { background: #cd7f32; color: white; }
+        
+        .architecture {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .architecture.intel { background: #e3f2fd; color: #1976d2; }
+        .architecture.amd { background: #fff3e0; color: #f57c00; }
+        .architecture.graviton { background: #e8f5e8; color: #388e3c; }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        .no-data h3 {
+            margin-bottom: 1rem;
+        }
+        
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .chart {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .chart h4 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .bar-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .bar-label {
+            min-width: 100px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        
+        .bar {
+            flex: 1;
+            height: 25px;
+            background: #667eea;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            padding: 0 0.5rem;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .filters {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary-stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .charts {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 AWS Instance Benchmarks Viewer</h1>
+        <p>Interactive viewer for AWS EC2 instance performance benchmarks</p>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>📁 Load Benchmark Data</h3>
+            <div class="file-input-container">
+                <input type="file" id="fileInput" class="file-input" multiple accept=".json" 
+                       placeholder="Select benchmark JSON files...">
+                <button class="button" onclick="loadSampleData()">Load Sample Data</button>
+                <button class="button secondary" onclick="clearData()">Clear Data</button>
+            </div>
+            
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="architectureFilter">Architecture</label>
+                    <select id="architectureFilter" onchange="filterResults()">
+                        <option value="">All Architectures</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="familyFilter">Instance Family</label>
+                    <select id="familyFilter" onchange="filterResults()">
+                        <option value="">All Families</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="benchmarkFilter">Benchmark Suite</label>
+                    <select id="benchmarkFilter" onchange="filterResults()">
+                        <option value="">All Benchmarks</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="sortBy">Sort By</label>
+                    <select id="sortBy" onchange="filterResults()">
+                        <option value="value_score">Value Score</option>
+                        <option value="triad_bandwidth">Triad Bandwidth</option>
+                        <option value="cost_efficiency">Cost Efficiency</option>
+                        <option value="price_per_gbps">Price per GB/s</option>
+                        <option value="hourly_price">Hourly Price</option>
+                        <option value="copy_bandwidth">Copy Bandwidth</option>
+                        <option value="instance_type">Instance Type</option>
+                        <option value="timestamp">Timestamp</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="results" id="resultsContainer">
+            <div class="no-data">
+                <h3>No Data Loaded</h3>
+                <p>Please select benchmark JSON files to view results, or click "Load Sample Data" to see example data.</p>
+            </div>
+        </div>
+        
+        <div class="charts" id="chartsContainer" style="display: none;">
+            <div class="chart">
+                <h4>📊 Top 10 Instances by Triad Bandwidth</h4>
+                <div class="bar-chart" id="triadChart"></div>
+            </div>
+            <div class="chart">
+                <h4>🏛️ Performance by Architecture</h4>
+                <div class="bar-chart" id="architectureChart"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let benchmarkData = [];
+        let filteredData = [];
+        let priceData = null;
+        let baselineInstance = 'm7i.large';
+        
+        document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+        
+        // Hardcoded AWS pricing data (as of June 2025)
+        const awsPricing = {
+            'us-east-1': {
+                'm7i.large': 0.1008, 'm7i.xlarge': 0.2016, 'm7i.2xlarge': 0.4032,
+                'm7a.large': 0.0864, 'm7a.xlarge': 0.1728, 'm7a.2xlarge': 0.3456,
+                'm7g.large': 0.0808, 'm7g.xlarge': 0.1616, 'm7g.2xlarge': 0.3232,
+                'c7i.large': 0.0850, 'c7i.xlarge': 0.1700, 'c7i.2xlarge': 0.3400,
+                'c7a.large': 0.0765, 'c7a.xlarge': 0.1530, 'c7a.2xlarge': 0.3060,
+                'c7g.large': 0.0725, 'c7g.xlarge': 0.1450, 'c7g.2xlarge': 0.2900,
+                'r7i.large': 0.1512, 'r7i.xlarge': 0.3024, 'r7i.2xlarge': 0.6048,
+                'r7a.large': 0.1260, 'r7a.xlarge': 0.2520, 'r7a.2xlarge': 0.5040,
+                'r7g.large': 0.1344, 'r7g.xlarge': 0.2688, 'r7g.2xlarge': 0.5376
+            }
+        };
+        
+        function getInstancePrice(instanceType, region = 'us-east-1') {
+            return awsPricing[region]?.[instanceType] || 0.10; // Default fallback
+        }
+        
+        function calculatePricePerformance(data) {
+            const baseline = data.find(item => item.instanceType === baselineInstance) || 
+                           data.find(item => item.metrics.triad_bandwidth > 0);
+            
+            if (!baseline) return data;
+            
+            const baselinePrice = getInstancePrice(baseline.instanceType, baseline.region);
+            const baselinePricePerGBps = baselinePrice / baseline.metrics.triad_bandwidth;
+            
+            return data.map(item => {
+                const price = getInstancePrice(item.instanceType, item.region);
+                const pricePerGBps = price / item.metrics.triad_bandwidth;
+                const performanceRatio = item.metrics.triad_bandwidth / baseline.metrics.triad_bandwidth;
+                const costEfficiencyRatio = baselinePricePerGBps / pricePerGBps;
+                const valueScore = performanceRatio * costEfficiencyRatio;
+                
+                return {
+                    ...item,
+                    pricing: {
+                        hourlyPrice: price,
+                        pricePerGBps: pricePerGBps,
+                        performanceRatio: performanceRatio,
+                        costEfficiencyRatio: costEfficiencyRatio,
+                        valueScore: valueScore,
+                        baselineInstance: baseline.instanceType
+                    }
+                };
+            });
+        }
+        
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+            
+            showLoading();
+            benchmarkData = [];
+            
+            let filesProcessed = 0;
+            const totalFiles = files.length;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        const processedData = processFileData(data, file.name);
+                        if (processedData) {
+                            benchmarkData.push(processedData);
+                        }
+                    } catch (error) {
+                        console.error(`Error parsing ${file.name}:`, error);
+                    }
+                    
+                    filesProcessed++;
+                    if (filesProcessed === totalFiles) {
+                        // Calculate price/performance metrics
+                        benchmarkData = calculatePricePerformance(benchmarkData);
+                        updateFilters();
+                        filterResults();
+                        updateCharts();
+                    }
+                };
+                
+                reader.readAsText(file);
+            }
+        }
+        
+        function processFileData(data, filename) {
+            try {
+                // Extract metadata
+                const metadata = data.metadata || {};
+                const performanceData = data.performance_data || data.performance || {};
+                
+                // Extract STREAM data
+                const streamData = performanceData.stream || performanceData.memory?.stream || {};
+                
+                // Extract instance info
+                const instanceType = metadata.instance_type || metadata.instanceType || extractFromFilename(filename, 'instance');
+                const architecture = metadata.architecture || metadata.processorArchitecture || 'unknown';
+                const region = metadata.region || 'unknown';
+                const timestamp = metadata.timestamp || new Date().toISOString();
+                
+                // Extract benchmark metrics
+                const metrics = {
+                    triad_bandwidth: extractBandwidth(streamData.triad),
+                    copy_bandwidth: extractBandwidth(streamData.copy),
+                    scale_bandwidth: extractBandwidth(streamData.scale),
+                    add_bandwidth: extractBandwidth(streamData.add)
+                };
+                
+                return {
+                    filename,
+                    instanceType,
+                    instanceFamily: instanceType.split('.')[0],
+                    architecture,
+                    region,
+                    timestamp,
+                    benchmarkSuite: determineBenchmarkSuite(performanceData),
+                    metrics,
+                    rawData: data
+                };
+            } catch (error) {
+                console.error(`Error processing ${filename}:`, error);
+                return null;
+            }
+        }
+        
+        function extractBandwidth(benchmarkData) {
+            if (!benchmarkData) return null;
+            if (typeof benchmarkData === 'number') return benchmarkData;
+            if (benchmarkData.bandwidth) return benchmarkData.bandwidth;
+            return null;
+        }
+        
+        function extractFromFilename(filename, type) {
+            if (type === 'instance') {
+                const match = filename.match(/([a-z0-9]+\.[a-z0-9]+)/);
+                return match ? match[1] : 'unknown';
+            }
+            return 'unknown';
+        }
+        
+        function determineBenchmarkSuite(performanceData) {
+            if (performanceData.stream || performanceData.memory?.stream) return 'STREAM';
+            if (performanceData.hpl || performanceData.cpu?.linpack) return 'HPL';
+            return 'Mixed';
+        }
+        
+        function updateFilters() {
+            const architectures = [...new Set(benchmarkData.map(d => d.architecture))].sort();
+            const families = [...new Set(benchmarkData.map(d => d.instanceFamily))].sort();
+            const benchmarks = [...new Set(benchmarkData.map(d => d.benchmarkSuite))].sort();
+            
+            updateSelectOptions('architectureFilter', architectures);
+            updateSelectOptions('familyFilter', families);
+            updateSelectOptions('benchmarkFilter', benchmarks);
+        }
+        
+        function updateSelectOptions(selectId, options) {
+            const select = document.getElementById(selectId);
+            const currentValue = select.value;
+            
+            // Keep the "All" option and add new options
+            select.innerHTML = select.children[0].outerHTML;
+            
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                select.appendChild(optionElement);
+            });
+            
+            // Restore previous selection if still valid
+            if (options.includes(currentValue)) {
+                select.value = currentValue;
+            }
+        }
+        
+        function filterResults() {
+            const architectureFilter = document.getElementById('architectureFilter').value;
+            const familyFilter = document.getElementById('familyFilter').value;
+            const benchmarkFilter = document.getElementById('benchmarkFilter').value;
+            const sortBy = document.getElementById('sortBy').value;
+            
+            filteredData = benchmarkData.filter(item => {
+                return (!architectureFilter || item.architecture === architectureFilter) &&
+                       (!familyFilter || item.instanceFamily === familyFilter) &&
+                       (!benchmarkFilter || item.benchmarkSuite === benchmarkFilter);
+            });
+            
+            // Sort the data
+            filteredData.sort((a, b) => {
+                if (sortBy === 'instance_type') {
+                    return a.instanceType.localeCompare(b.instanceType);
+                } else if (sortBy === 'timestamp') {
+                    return new Date(b.timestamp) - new Date(a.timestamp);
+                } else if (sortBy === 'hourly_price') {
+                    const aValue = a.pricing?.hourlyPrice || 0;
+                    const bValue = b.pricing?.hourlyPrice || 0;
+                    return aValue - bValue; // Ascending order for price (lower is better)
+                } else if (sortBy === 'price_per_gbps') {
+                    const aValue = a.pricing?.pricePerGBps || 0;
+                    const bValue = b.pricing?.pricePerGBps || 0;
+                    return aValue - bValue; // Ascending order for price per GB/s (lower is better)
+                } else if (sortBy === 'value_score' || sortBy === 'cost_efficiency') {
+                    const field = sortBy === 'value_score' ? 'valueScore' : 'costEfficiencyRatio';
+                    const aValue = a.pricing?.[field] || 0;
+                    const bValue = b.pricing?.[field] || 0;
+                    return bValue - aValue; // Descending order (higher is better)
+                } else {
+                    const aValue = a.metrics[sortBy] || 0;
+                    const bValue = b.metrics[sortBy] || 0;
+                    return bValue - aValue; // Descending order for performance metrics
+                }
+            });
+            
+            displayResults();
+        }
+        
+        function displayResults() {
+            const container = document.getElementById('resultsContainer');
+            
+            if (filteredData.length === 0) {
+                container.innerHTML = `
+                    <div class="no-data">
+                        <h3>No Results Found</h3>
+                        <p>Try adjusting your filters or loading more data files.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Calculate rankings for triad bandwidth
+            const triadRankings = [...filteredData]
+                .filter(d => d.metrics.triad_bandwidth)
+                .sort((a, b) => (b.metrics.triad_bandwidth || 0) - (a.metrics.triad_bandwidth || 0))
+                .reduce((acc, item, index) => {
+                    acc[item.instanceType] = index + 1;
+                    return acc;
+                }, {});
+            
+            const html = `
+                <div class="results-header">
+                    <h3>📊 Benchmark Results</h3>
+                    <div class="summary-stats">
+                        <span>Total: ${filteredData.length} results</span>
+                        <span>Architectures: ${new Set(filteredData.map(d => d.architecture)).size}</span>
+                        <span>Instance Types: ${new Set(filteredData.map(d => d.instanceType)).size}</span>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Instance Type</th>
+                                <th>Architecture</th>
+                                <th>Price/Hr</th>
+                                <th>Value Score</th>
+                                <th>Triad Bandwidth</th>
+                                <th>Price/GB/s</th>
+                                <th>Cost Efficiency</th>
+                                <th>Region</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredData.map((item, index) => `
+                                <tr>
+                                    <td>
+                                        ${getValueRanking(index + 1)}
+                                    </td>
+                                    <td><strong>${item.instanceType}</strong></td>
+                                    <td><span class="architecture ${item.architecture}">${item.architecture}</span></td>
+                                    <td>${formatCurrency(item.pricing?.hourlyPrice)}</td>
+                                    <td>${formatScore(item.pricing?.valueScore)}</td>
+                                    <td>${formatMetric(item.metrics.triad_bandwidth, 'GB/s')}</td>
+                                    <td>${formatCurrency(item.pricing?.pricePerGBps)}</td>
+                                    <td>${formatRatio(item.pricing?.costEfficiencyRatio)}</td>
+                                    <td>${item.region}</td>
+                                    <td>${new Date(item.timestamp).toLocaleDateString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+        
+        function formatMetric(value, unit) {
+            if (value === null || value === undefined) return '-';
+            return `<span class="metric-value">${value.toFixed(1)}</span><span class="metric-unit">${unit}</span>`;
+        }
+        
+        function formatCurrency(value) {
+            if (value === null || value === undefined) return '-';
+            return `<span class="metric-value">$${value.toFixed(4)}</span>`;
+        }
+        
+        function formatScore(value) {
+            if (value === null || value === undefined) return '-';
+            return `<span class="metric-value">${value.toFixed(2)}</span>`;
+        }
+        
+        function formatRatio(value) {
+            if (value === null || value === undefined) return '-';
+            return `<span class="metric-value">${value.toFixed(2)}x</span>`;
+        }
+        
+        function getValueRanking(rank) {
+            switch (rank) {
+                case 1: return '<span class="ranking rank-1">🥇 #1</span>';
+                case 2: return '<span class="ranking rank-2">🥈 #2</span>';
+                case 3: return '<span class="ranking rank-3">🥉 #3</span>';
+                default: return `<span class="ranking">#${rank}</span>`;
+            }
+        }
+        
+        function updateCharts() {
+            if (benchmarkData.length === 0) {
+                document.getElementById('chartsContainer').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('chartsContainer').style.display = 'grid';
+            
+            // Top 10 instances by triad bandwidth
+            const top10 = [...benchmarkData]
+                .filter(d => d.metrics.triad_bandwidth)
+                .sort((a, b) => (b.metrics.triad_bandwidth || 0) - (a.metrics.triad_bandwidth || 0))
+                .slice(0, 10);
+            
+            const maxTriad = Math.max(...top10.map(d => d.metrics.triad_bandwidth));
+            
+            document.getElementById('triadChart').innerHTML = top10.map(item => `
+                <div class="bar-item">
+                    <div class="bar-label">${item.instanceType}</div>
+                    <div class="bar" style="width: ${(item.metrics.triad_bandwidth / maxTriad) * 100}%">
+                        ${item.metrics.triad_bandwidth.toFixed(1)} GB/s
+                    </div>
+                </div>
+            `).join('');
+            
+            // Performance by architecture
+            const architectureStats = benchmarkData.reduce((acc, item) => {
+                if (!item.metrics.triad_bandwidth) return acc;
+                
+                if (!acc[item.architecture]) {
+                    acc[item.architecture] = { total: 0, count: 0 };
+                }
+                acc[item.architecture].total += item.metrics.triad_bandwidth;
+                acc[item.architecture].count += 1;
+                return acc;
+            }, {});
+            
+            const architectureAvgs = Object.entries(architectureStats).map(([arch, stats]) => ({
+                architecture: arch,
+                average: stats.total / stats.count,
+                count: stats.count
+            })).sort((a, b) => b.average - a.average);
+            
+            const maxArchAvg = Math.max(...architectureAvgs.map(d => d.average));
+            
+            document.getElementById('architectureChart').innerHTML = architectureAvgs.map(item => `
+                <div class="bar-item">
+                    <div class="bar-label">${item.architecture}</div>
+                    <div class="bar" style="width: ${(item.average / maxArchAvg) * 100}%">
+                        ${item.average.toFixed(1)} GB/s (${item.count} instances)
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function showLoading() {
+            document.getElementById('resultsContainer').innerHTML = `
+                <div class="loading">
+                    <h3>Loading benchmark data...</h3>
+                    <p>Processing files and extracting performance metrics.</p>
+                </div>
+            `;
+        }
+        
+        function clearData() {
+            benchmarkData = [];
+            filteredData = [];
+            document.getElementById('fileInput').value = '';
+            updateFilters();
+            displayResults();
+            document.getElementById('chartsContainer').style.display = 'none';
+        }
+        
+        function loadSampleData() {
+            // Create sample data for demonstration
+            benchmarkData = [
+                {
+                    filename: 'sample-m7i.large.json',
+                    instanceType: 'm7i.large',
+                    instanceFamily: 'm7i',
+                    architecture: 'intel',
+                    region: 'us-east-1',
+                    timestamp: '2025-06-29T12:00:00Z',
+                    benchmarkSuite: 'STREAM',
+                    metrics: { triad_bandwidth: 41.9, copy_bandwidth: 45.2, scale_bandwidth: 44.8, add_bandwidth: 42.1 }
+                },
+                {
+                    filename: 'sample-c7g.large.json',
+                    instanceType: 'c7g.large',
+                    instanceFamily: 'c7g',
+                    architecture: 'graviton',
+                    region: 'us-east-1',
+                    timestamp: '2025-06-29T12:05:00Z',
+                    benchmarkSuite: 'STREAM',
+                    metrics: { triad_bandwidth: 38.7, copy_bandwidth: 42.1, scale_bandwidth: 41.5, add_bandwidth: 39.2 }
+                },
+                {
+                    filename: 'sample-m7a.large.json',
+                    instanceType: 'm7a.large',
+                    instanceFamily: 'm7a',
+                    architecture: 'amd',
+                    region: 'us-east-1',
+                    timestamp: '2025-06-29T12:10:00Z',
+                    benchmarkSuite: 'STREAM',
+                    metrics: { triad_bandwidth: 43.2, copy_bandwidth: 46.8, scale_bandwidth: 45.9, add_bandwidth: 43.7 }
+                },
+                {
+                    filename: 'sample-r7g.large.json',
+                    instanceType: 'r7g.large',
+                    instanceFamily: 'r7g',
+                    architecture: 'graviton',
+                    region: 'us-east-1',
+                    timestamp: '2025-06-29T12:15:00Z',
+                    benchmarkSuite: 'STREAM',
+                    metrics: { triad_bandwidth: 45.8, copy_bandwidth: 49.1, scale_bandwidth: 48.2, add_bandwidth: 46.3 }
+                },
+                {
+                    filename: 'sample-c7a.large.json',
+                    instanceType: 'c7a.large',
+                    instanceFamily: 'c7a',
+                    architecture: 'amd',
+                    region: 'us-east-1',
+                    timestamp: '2025-06-29T12:20:00Z',
+                    benchmarkSuite: 'STREAM',
+                    metrics: { triad_bandwidth: 40.1, copy_bandwidth: 44.3, scale_bandwidth: 43.7, add_bandwidth: 40.8 }
+                }
+            ];
+            
+            // Calculate price/performance metrics
+            benchmarkData = calculatePricePerformance(benchmarkData);
+            updateFilters();
+            filterResults();
+            updateCharts();
+        }
+    </script>
+</body>
+</html>
