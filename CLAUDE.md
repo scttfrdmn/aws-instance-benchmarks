@@ -13,6 +13,13 @@ Create an open, community-driven database of comprehensive performance benchmark
 - **Pre-commit Hooks**: Automated linting, formatting, and testing
 - **Comprehensive Documentation**: Every exported function must have detailed documentation with examples for developer onboarding
 
+### **1.1. Data Integrity Rules (CRITICAL)**
+- **NO FAKED DATA**: All benchmark results must be from actual execution on real instances
+- **NO CHEATING**: Never simulate, mock, or fabricate benchmark outputs
+- **NO WORKAROUNDS**: Implement real solutions, not shortcuts that bypass actual benchmarking
+- **HONEST IMPLEMENTATION**: Code must accurately represent what it actually does
+- **REAL EXECUTION ONLY**: SSH/SSM commands must execute genuine Docker containers with real benchmarks
+
 ### **2. Open & Transparent**
 - **Open Data Format**: GitHub-hosted JSON with versioned schemas
 - **Community Contributions**: Enable easy benchmark submissions
@@ -203,4 +210,4 @@ const data = await response.json()
 
 ---
 
-**This document should be updated as the project evolves. Last updated: 2024-06-26**
+**This document should be updated as the project evolves. Last updated: 2025-06-29**

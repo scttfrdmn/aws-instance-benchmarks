@@ -1428,28 +1428,34 @@ func extractInstanceFamily(instanceType string) string {
 }
 
 func getArchitectureFromInstance(instanceType string) string {
-	// Determine architecture based on instance type
-	if strings.Contains(instanceType, "g.") || strings.HasSuffix(instanceType, "g") {
-		if strings.HasPrefix(instanceType, "m") || strings.HasPrefix(instanceType, "c") || 
-			strings.HasPrefix(instanceType, "r") || strings.HasPrefix(instanceType, "t") {
-			return "arm64" // Graviton instances
-		}
+	// Determine architecture based on instance type for schema compliance
+	if strings.Contains(instanceType, "g") && (strings.HasPrefix(instanceType, "m") || 
+		strings.HasPrefix(instanceType, "c") || strings.HasPrefix(instanceType, "r") || 
+		strings.HasPrefix(instanceType, "t")) {
+		return "graviton" // Graviton instances (c7g, m7g, r7g, etc.)
 	}
-	return "x86_64" // Intel/AMD instances
+	
+	// Detect AMD instances (family name contains 'a')
+	family := extractInstanceFamily(instanceType)
+	if strings.Contains(family, "a") {
+		return "amd" // AMD instances (c7a, m7a, r7a, etc.)
+	}
+	
+	return "intel" // Intel instances (c7i, m7i, r7i, etc.)
 }
 
 func getCompilerOptimizations(instanceType string) string {
 	arch := getArchitectureFromInstance(instanceType)
-	if arch == "arm64" {
+	switch arch {
+	case "graviton":
 		return "-O3 -march=native -mtune=native -mcpu=neoverse-v1"
+	case "amd":
+		return "-O3 -march=native -mtune=native -mprefer-avx128"
+	case "intel":
+		return "-O3 -march=native -mtune=native -mavx2"
+	default:
+		return "-O3 -march=native -mtune=native"
 	}
-	
-	// Detect Intel vs AMD for x86_64
-	family := extractInstanceFamily(instanceType)
-	if strings.Contains(family, "a") {
-		return "-O3 -march=native -mtune=native -mprefer-avx128" // AMD optimizations
-	}
-	return "-O3 -march=native -mtune=native -mavx2" // Intel optimizations
 }
 
 func calculateQualityScore(benchmarkData interface{}) float64 {
