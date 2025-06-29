@@ -97,6 +97,7 @@ func main() {
 	var benchmarkSuites []string
 	var maxConcurrency int
 	var iterations int
+	var s3Bucket string
 
 	runCmd.Flags().StringSliceVar(&instanceTypes, "instance-types", []string{"m7i.large"}, "Instance types to benchmark")
 	runCmd.Flags().StringVar(&region, "region", "us-east-1", "AWS region")
@@ -107,6 +108,7 @@ func main() {
 	runCmd.Flags().StringSliceVar(&benchmarkSuites, "benchmarks", []string{"stream"}, "Benchmark suites to run (stream, hpl)")
 	runCmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 5, "Maximum number of concurrent benchmarks")
 	runCmd.Flags().IntVar(&iterations, "iterations", 1, "Number of benchmark iterations for statistical validation")
+	runCmd.Flags().StringVar(&s3Bucket, "s3-bucket", "", "S3 bucket for storing results (defaults to aws-instance-benchmarks-data-{region})")
 
 	var schemaCmd = &cobra.Command{
 		Use:   "schema",
@@ -272,6 +274,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	benchmarkSuites, _ := cmd.Flags().GetStringSlice("benchmarks")
 	maxConcurrency, _ := cmd.Flags().GetInt("max-concurrency")
 	iterations, _ := cmd.Flags().GetInt("iterations")
+	s3Bucket, _ := cmd.Flags().GetString("s3-bucket")
 
 	// Validate required parameters
 	if keyPair == "" {
@@ -290,8 +293,13 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Initialize S3 storage for results
+	bucketName := s3Bucket
+	if bucketName == "" {
+		bucketName = fmt.Sprintf("aws-instance-benchmarks-data-%s", region)
+	}
+	
 	storageConfig := storage.Config{
-		BucketName:         "aws-instance-benchmarks-data",
+		BucketName:         bucketName,
 		KeyPrefix:          "instance-benchmarks/",
 		EnableCompression:  false,
 		EnableVersioning:   false,

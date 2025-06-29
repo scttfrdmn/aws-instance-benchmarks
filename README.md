@@ -71,14 +71,27 @@ go build -o aws-benchmark-collector ./cmd
     --architectures intel-icelake,amd-zen4,graviton3 \
     --benchmarks stream
 
-# Run benchmarks with statistical validation (multiple iterations)
+# Run comprehensive benchmarks across multiple instance types
 ./aws-benchmark-collector run \
-    --instance-types m7i.large,c7g.large \
+    --instance-types m7i.large,m7a.large,m7g.large,c7i.large,c7a.large,c7g.large \
     --region us-east-1 \
     --key-pair my-key-pair \
     --security-group sg-xxxxxxxxx \
     --subnet subnet-xxxxxxxxx \
+    --s3-bucket my-benchmark-bucket \
     --benchmarks stream,hpl \
+    --iterations 3 \
+    --max-concurrency 8
+
+# Run benchmarks with custom S3 storage
+./aws-benchmark-collector run \
+    --instance-types m7i.large,c7g.large \
+    --region us-west-2 \
+    --key-pair my-key-pair \
+    --security-group sg-xxxxxxxxx \
+    --subnet subnet-xxxxxxxxx \
+    --s3-bucket aws-instance-benchmarks-data-us-west-2 \
+    --benchmarks stream \
     --iterations 5
 
 # Schema validation and migration
@@ -135,12 +148,72 @@ func main() {
 - **Cost Optimization**: Price/performance analysis
 - **Academic Research**: HPC cloud computing studies
 
-## 📈 Current Coverage
+## 📈 Comprehensive Testing Coverage
 
-- **Instance Families**: 25+ families (m7i, c7g, r7a, inf2, trn1, etc.)
-- **Architectures**: Intel Xeon, AMD EPYC, AWS Graviton, Inferentia, Trainium  
-- **Instance Sizes**: nano to 96xlarge across all families
-- **Regions**: Multi-region validation for consistency
+### Instance Type Coverage (27+ types tested)
+- **Compute Optimized**: c5.large, c5a.large, c6a.large, c6g.large, c6i.large, c7a.large, c7g.large, c7i.large  
+- **General Purpose**: m5.large, m5a.large, m6a.large, m6g.large, m6i.large, m7a.large, m7g.large, m7i.large
+- **Memory Optimized**: r5.large, r5a.large, r6a.large, r6g.large, r6i.large, r7a.large, r7g.large, r7i.large
+- **Storage Optimized**: i4i.large
+- **Burstable**: t3.large, t3a.large
+
+### Architecture Coverage
+- **Intel (x86_64)**: c5, c6i, c7i, m5, m6i, m7i, r5, r6i, r7i, i4i, t3
+- **AMD (x86_64)**: c5a, c6a, c7a, m5a, m6a, m7a, r5a, r6a, r7a, t3a  
+- **AWS Graviton (ARM64)**: c6g, c7g, m6g, m7g, r6g, r7g
+
+### Benchmark Types
+- **STREAM**: Memory bandwidth testing across all architectures
+- **HPL (LINPACK)**: CPU floating-point performance
+- **Statistical Validation**: Multiple iterations with confidence intervals
+
+## ⚙️ AWS Configuration Requirements
+
+### Prerequisites
+1. **AWS CLI configured** with appropriate credentials
+2. **EC2 permissions** for launching instances, managing security groups, and VPC access
+3. **S3 permissions** for storing benchmark results
+4. **CloudWatch permissions** for metrics publishing (optional)
+
+### Required AWS Profile Setup
+```bash
+# Configure AWS profile for benchmarking (recommended: 'aws' profile)
+aws configure --profile aws
+# Alternatively, use default profile
+aws configure
+```
+
+### AWS Permissions Required
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:RunInstances",
+                "ec2:TerminateInstances",
+                "ec2:DescribeInstances",
+                "ec2:DescribeInstanceTypes",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeKeyPairs",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket",
+                "cloudwatch:PutMetricData"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+### Important Configuration Notes
+- **Subnet Selection**: Use subnets that support modern instance types (e.g., us-east-1c, not us-east-1e)
+- **S3 Bucket**: Configurable via `--s3-bucket` flag, defaults to `aws-instance-benchmarks-data-{region}`
+- **Architecture Matching**: ARM64 instances require ARM64-compatible AMIs
+- **Availability Zones**: Some newer instance types have limited AZ availability
 
 ## 🏗️ Architecture & Components
 

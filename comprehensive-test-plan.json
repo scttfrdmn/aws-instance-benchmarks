@@ -1,0 +1,78 @@
+{
+  "comprehensive_benchmark_plan": {
+    "description": "Expanded testing across major AWS instance families",
+    "target_instances": [
+      {
+        "category": "General Purpose",
+        "families": [
+          {"family": "m7i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m7a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m7g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "m6i", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m6a", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m6g", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m5", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m5a", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "t3", "sizes": ["medium", "large", "xlarge"]},
+          {"family": "t3a", "sizes": ["medium", "large", "xlarge"]},
+          {"family": "t4g", "sizes": ["medium", "large", "xlarge"]}
+        ]
+      },
+      {
+        "category": "Compute Optimized",
+        "families": [
+          {"family": "c7i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c7a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c7g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "c6i", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "c6a", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "c6g", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "c5", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "c5a", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "c5n", "sizes": ["large", "xlarge", "2xlarge"]}
+        ]
+      },
+      {
+        "category": "Memory Optimized",
+        "families": [
+          {"family": "r7i", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r7a", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r7g", "sizes": ["large", "xlarge", "2xlarge", "4xlarge"]},
+          {"family": "r6i", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "r6a", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "r6g", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "r5", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "r5a", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "x2gd", "sizes": ["medium", "large", "xlarge"]},
+          {"family": "z1d", "sizes": ["large", "xlarge", "2xlarge"]}
+        ]
+      },
+      {
+        "category": "Storage Optimized",
+        "families": [
+          {"family": "i4i", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "i4g", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "i3", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "d3", "sizes": ["xlarge", "2xlarge", "4xlarge"]},
+          {"family": "h1", "sizes": ["2xlarge", "4xlarge", "8xlarge"]}
+        ]
+      },
+      {
+        "category": "Network Optimized",
+        "families": [
+          {"family": "c5n", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m5n", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "r5n", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "m6in", "sizes": ["large", "xlarge", "2xlarge"]},
+          {"family": "c6in", "sizes": ["large", "xlarge", "2xlarge"]}
+        ]
+      }
+    ],
+    "benchmarks": ["stream", "hpl"],
+    "iterations": 3,
+    "max_concurrency": 10,
+    "estimated_runtime": "4-6 hours",
+    "estimated_instances": 158,
+    "estimated_cost": "$300-500"
+  }
+}
