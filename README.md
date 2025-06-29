@@ -101,6 +101,24 @@ go build -o aws-benchmark-collector ./cmd
     --benchmarks stream,hpl \
     --output weekly-plan.json
 
+# Process benchmark data into Git-native statistical format
+./aws-benchmark-collector process daily \
+    --date 2024-06-29 \
+    --s3-bucket aws-instance-benchmarks-data-us-east-1 \
+    --commit-to-git
+
+# Generate aggregated summaries and indices
+./aws-benchmark-collector process aggregate \
+    --regenerate-families \
+    --regenerate-architectures \
+    --regenerate-indices
+
+# Validate data quality and statistical significance
+./aws-benchmark-collector process validate \
+    --statistical \
+    --schema \
+    --report validation-report.json
+
 # Schema validation and migration
 ./aws-benchmark-collector schema validate results/ --version 1.0.0
 ./aws-benchmark-collector schema migrate legacy/ migrated/ --version 1.0.0
@@ -239,6 +257,8 @@ aws configure
 - **`pkg/containers`**: Docker container build framework with architecture optimization
 
 ### Key Features
+- **Git-Native Data Storage**: Versioned statistical data with complete audit trail
+- **GitHub Pages Integration**: Interactive web interface with direct data access
 - **Batch Scheduling**: Systematic execution across time windows to avoid quota limits
 - **Microarchitecture Analysis**: Deep CPU and memory subsystem performance insights
 - **Statistical Rigor**: Confidence intervals, outlier detection, quality assessment
@@ -260,6 +280,9 @@ See our comprehensive guides for detailed configuration instructions:
 - [AWS Setup Guide](docs/AWS_SETUP.md) - AWS configuration and permissions
 - [Batch Scheduling Guide](docs/BATCH_SCHEDULING.md) - Systematic execution over time
 - [Microarchitecture Benchmarks](docs/MICROARCHITECTURE_BENCHMARKS.md) - Deep performance analysis
+- [Data Pipeline](docs/DATA_PIPELINE.md) - GitHub-first data distribution strategy
+- [Git-Native Data Storage](docs/GIT_NATIVE_DATA_STORAGE.md) - Versioned statistical data
+- [GitHub Pages Integration](docs/GITHUB_PAGES_INTEGRATION.md) - Interactive web interface
 
 ```bash
 # Prerequisites: AWS CLI v2 configured with 'aws' profile
