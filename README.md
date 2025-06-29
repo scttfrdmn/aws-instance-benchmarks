@@ -80,6 +80,10 @@ go build -o aws-benchmark-collector ./cmd
     --subnet subnet-xxxxxxxxx \
     --benchmarks stream,hpl \
     --iterations 5
+
+# Schema validation and migration
+./aws-benchmark-collector schema validate results/ --version 1.0.0
+./aws-benchmark-collector schema migrate legacy/ migrated/ --version 1.0.0
 ```
 
 ### **Using the Data**
@@ -204,6 +208,13 @@ go build -o aws-benchmark-collector ./cmd
 - **Quality assessment** with coefficient of variation and efficiency scoring
 - **Cost tracking** and price-performance analysis
 - See [CloudWatch Integration Guide](docs/CLOUDWATCH_INTEGRATION.md)
+
+#### Schema Versioning and Data Quality
+- **Semantic versioning** for data schemas with migration support
+- **Built-in validation** for all benchmark results and contributions
+- **Community quality assurance** with automated validation workflows
+- **API compatibility** guarantees for data consumers
+- See [Schema Versioning Guide](docs/SCHEMA_VERSIONING.md)
 
 ## 📄 License
 

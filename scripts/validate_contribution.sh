@@ -39,7 +39,20 @@ fi
 echo -e "${GREEN}✅ Test contribution has valid JSON format${NC}"
 
 echo -e "\n${YELLOW}Step 3: Testing JSON Schema Validation${NC}"
-# Simple schema validation using Python
+# Use the built-in schema validation tool if available
+if [ -f "./aws-benchmark-collector" ]; then
+    echo "Using built-in schema validator..."
+    if ./aws-benchmark-collector schema validate "$TEST_CONTRIBUTION" --version 1.0.0; then
+        echo -e "${GREEN}✅ Built-in schema validation passed${NC}"
+    else
+        echo -e "${RED}❌ Built-in schema validation failed${NC}"
+        echo "Falling back to basic validation..."
+    fi
+else
+    echo "Built-in validator not available, using basic validation..."
+fi
+
+# Fallback basic validation using Python
 python3 << EOF
 import json
 import sys

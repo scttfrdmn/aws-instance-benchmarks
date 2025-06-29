@@ -15,10 +15,20 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+        
+    - name: Build schema validation tools
+      run: |
+        echo "Building schema validation CLI..."
+        go build -o aws-benchmark-collector ./cmd
         
     - name: Install validation tools
       run: |
@@ -138,9 +148,37 @@ EOF
           python3 validate_basic.py
         fi
         
-    - name: Validate JSON schema compliance
+    - name: Schema validation with built-in tools
       run: |
-        echo "📋 Checking JSON Schema compliance..."
+        echo "📋 Running comprehensive schema validation..."
+        
+        # Find and validate all contribution files using the built-in validator
+        find_and_validate() {
+          local path=$1
+          if [ -d "$path" ]; then
+            find "$path" -name "*.json" -type f | while read file; do
+              if [[ "$file" != *"metadata"* ]] && [[ "$file" != *"config"* ]]; then
+                echo "🔍 Validating: $file"
+                if ./aws-benchmark-collector schema validate "$file" --version 1.0.0; then
+                  echo "✅ $file: Schema validation passed"
+                else
+                  echo "❌ $file: Schema validation failed" 
+                  exit 1
+                fi
+              fi
+            done
+          fi
+        }
+        
+        # Validate contribution directories
+        find_and_validate "data/contributions"
+        find_and_validate "data/raw"
+        
+        echo "✅ All schema validations completed"
+
+    - name: Validate JSON schema compliance (fallback)
+      run: |
+        echo "📋 Running additional schema compliance checks..."
         
         python3 << 'EOF'
 import json

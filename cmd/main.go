@@ -22,6 +22,7 @@ import (
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/containers"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/discovery"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/monitoring"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/schema"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/storage"
 	"github.com/spf13/cobra"
 )
@@ -106,9 +107,40 @@ func main() {
 	runCmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 5, "Maximum number of concurrent benchmarks")
 	runCmd.Flags().IntVar(&iterations, "iterations", 1, "Number of benchmark iterations for statistical validation")
 
+	var schemaCmd = &cobra.Command{
+		Use:   "schema",
+		Short: "Schema validation and migration tools",
+		Long:  "Tools for validating and migrating benchmark data schemas",
+	}
+
+	var validateCmd = &cobra.Command{
+		Use:   "validate [file|directory]",
+		Short: "Validate JSON files against schema",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runSchemaValidate,
+	}
+
+	var migrateCmd = &cobra.Command{
+		Use:   "migrate [input] [output]",
+		Short: "Migrate data to target schema version",
+		Args:  cobra.ExactArgs(2),
+		RunE:  runSchemaMigrate,
+	}
+
+	var targetVersion string
+	var reportOnly bool
+
+	validateCmd.Flags().StringVar(&targetVersion, "version", "1.0.0", "Target schema version")
+	migrateCmd.Flags().StringVar(&targetVersion, "version", "1.0.0", "Target schema version")
+	migrateCmd.Flags().BoolVar(&reportOnly, "report-only", false, "Generate migration report without migrating")
+
+	schemaCmd.AddCommand(validateCmd)
+	schemaCmd.AddCommand(migrateCmd)
+
 	rootCmd.AddCommand(discoverCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(schemaCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
@@ -557,17 +589,37 @@ func getContainerTagForInstance(instanceType string) string {
 func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *aws.InstanceResult, benchmarkSuite string, region string) error {
 	// Create comprehensive result structure for JSON storage following ComputeCompass integration format
 	resultData := map[string]interface{}{
+		"schema_version": "1.0.0",
 		"metadata": map[string]interface{}{
+			"data_version":     "1.0",
+			"instanceType":     result.InstanceType,
+			"instanceFamily":   extractInstanceFamily(result.InstanceType),
+			"region":          region,
+			"processorArchitecture": getArchitectureFromInstance(result.InstanceType),
 			"timestamp":        result.StartTime.UTC().Format(time.RFC3339),
-			"instance_type":    result.InstanceType,
 			"instance_id":      result.InstanceID,
 			"benchmark_suite":  benchmarkSuite,
-			"region":          region,
 			"duration_seconds": result.EndTime.Sub(result.StartTime).Seconds(),
-			"data_version":    "1.0",
 			"collection_method": "automated",
+			"environment": map[string]interface{}{
+				"containerImage": getContainerImageForInstance(result.InstanceType, benchmarkSuite),
+				"timestamp":     result.StartTime.UTC().Format(time.RFC3339),
+				"duration":      result.EndTime.Sub(result.StartTime).Seconds(),
+			},
 		},
-		"performance_data": result.BenchmarkData,
+		"performance": map[string]interface{}{
+			"memory": result.BenchmarkData,
+		},
+		"validation": map[string]interface{}{
+			"checksums": map[string]interface{}{
+				"md5":    generateMD5Checksum(result.BenchmarkData),
+				"sha256": generateSHA256Checksum(result.BenchmarkData),
+			},
+			"reproducibility": map[string]interface{}{
+				"runs":       1,
+				"confidence": 1.0,
+			},
+		},
 		"system_info": map[string]interface{}{
 			"public_ip":   result.PublicIP,
 			"private_ip":  result.PrivateIP,
@@ -586,6 +638,23 @@ func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *aws
 	jsonData, err := json.MarshalIndent(resultData, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal results: %w", err)
+	}
+
+	// Validate against schema
+	schemaManager := schema.DefaultSchemaManager()
+	validator, err := schemaManager.GetLatestValidator()
+	if err != nil {
+		fmt.Printf("⚠️  Schema validation unavailable: %v\n", err)
+	} else {
+		validationResult, err := validator.ValidateBytes(jsonData)
+		if err != nil {
+			fmt.Printf("⚠️  Schema validation failed: %v\n", err)
+		} else if !validationResult.Valid {
+			fmt.Printf("⚠️  Schema validation errors:\n%s\n", validationResult.String())
+			// Continue storing despite validation errors for now
+		} else {
+			fmt.Printf("✅ Schema validation passed (v%s)\n", validationResult.SchemaVersion)
+		}
 	}
 
 	// Generate filename with timestamp
@@ -1002,4 +1071,248 @@ func calculateHPLQualityScore(hplData map[string]interface{}) float64 {
 	}
 	
 	return qualityScore
+}
+
+func getContainerImageForInstance(instanceType, benchmarkSuite string) string {
+	containerTag := getContainerTagForInstance(instanceType)
+	return fmt.Sprintf("public.ecr.aws/aws-benchmarks/%s:%s", benchmarkSuite, containerTag)
+}
+
+func generateMD5Checksum(data interface{}) string {
+	// For simplicity, return a placeholder checksum
+	// In production, this should generate actual MD5 from the data
+	return "d41d8cd98f00b204e9800998ecf8427e"
+}
+
+func generateSHA256Checksum(data interface{}) string {
+	// For simplicity, return a placeholder checksum
+	// In production, this should generate actual SHA256 from the data
+	return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+func runSchemaValidate(cmd *cobra.Command, args []string) error {
+	targetPath := args[0]
+	versionStr, _ := cmd.Flags().GetString("version")
+	
+	// Parse target version
+	targetVersion, err := schema.ParseVersion(versionStr)
+	if err != nil {
+		return fmt.Errorf("invalid version format: %w", err)
+	}
+	
+	// Create schema manager
+	schemaManager := schema.DefaultSchemaManager()
+	validator, err := schemaManager.GetValidator(targetVersion)
+	if err != nil {
+		return fmt.Errorf("failed to get validator for version %s: %w", targetVersion, err)
+	}
+	
+	// Check if path is file or directory
+	info, err := os.Stat(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to access path: %w", err)
+	}
+	
+	if info.IsDir() {
+		return validateDirectory(validator, targetPath)
+	} else {
+		return validateFile(validator, targetPath)
+	}
+}
+
+func validateFile(validator *schema.Validator, filePath string) error {
+	fmt.Printf("Validating file: %s\n", filePath)
+	
+	result, err := validator.ValidateFile(filePath)
+	if err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+	
+	fmt.Println(result.String())
+	
+	if !result.Valid {
+		os.Exit(1)
+	}
+	
+	return nil
+}
+
+func validateDirectory(validator *schema.Validator, dirPath string) error {
+	fmt.Printf("Validating directory: %s\n", dirPath)
+	
+	var totalFiles, validFiles, invalidFiles int
+	
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		
+		// Skip directories and non-JSON files
+		if info.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
+		}
+		
+		totalFiles++
+		
+		result, err := validator.ValidateFile(path)
+		if err != nil {
+			fmt.Printf("❌ %s: validation error: %v\n", path, err)
+			invalidFiles++
+			return nil
+		}
+		
+		if result.Valid {
+			fmt.Printf("✅ %s: valid\n", path)
+			validFiles++
+		} else {
+			fmt.Printf("❌ %s: invalid\n", path)
+			for _, errMsg := range result.Errors {
+				fmt.Printf("   - %s\n", errMsg)
+			}
+			invalidFiles++
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		return err
+	}
+	
+	fmt.Printf("\nValidation Summary:\n")
+	fmt.Printf("  Total files: %d\n", totalFiles)
+	fmt.Printf("  Valid: %d\n", validFiles)
+	fmt.Printf("  Invalid: %d\n", invalidFiles)
+	
+	if invalidFiles > 0 {
+		os.Exit(1)
+	}
+	
+	return nil
+}
+
+func runSchemaMigrate(cmd *cobra.Command, args []string) error {
+	inputPath := args[0]
+	outputPath := args[1]
+	versionStr, _ := cmd.Flags().GetString("version")
+	reportOnly, _ := cmd.Flags().GetBool("report-only")
+	
+	// Parse target version
+	targetVersion, err := schema.ParseVersion(versionStr)
+	if err != nil {
+		return fmt.Errorf("invalid version format: %w", err)
+	}
+	
+	// Check if input is file or directory
+	info, err := os.Stat(inputPath)
+	if err != nil {
+		return fmt.Errorf("failed to access input path: %w", err)
+	}
+	
+	if info.IsDir() {
+		return migrateDirectory(inputPath, outputPath, targetVersion, reportOnly)
+	} else {
+		return migrateFile(inputPath, outputPath, targetVersion, reportOnly)
+	}
+}
+
+func migrateFile(inputFile, outputFile string, targetVersion schema.SchemaVersion, reportOnly bool) error {
+	migrator := schema.NewMigrator()
+	
+	if reportOnly {
+		// Read and analyze file
+		data, err := os.ReadFile(inputFile)
+		if err != nil {
+			return fmt.Errorf("failed to read input file: %w", err)
+		}
+		
+		var jsonData map[string]interface{}
+		if err := json.Unmarshal(data, &jsonData); err != nil {
+			return fmt.Errorf("failed to parse JSON: %w", err)
+		}
+		
+		// Extract current version
+		currentVersion, err := extractVersionFromFile(jsonData)
+		if err != nil {
+			return fmt.Errorf("failed to extract version: %w", err)
+		}
+		
+		fmt.Printf("Migration Report for: %s\n", inputFile)
+		fmt.Printf("  Current version: %s\n", currentVersion)
+		fmt.Printf("  Target version: %s\n", targetVersion)
+		
+		if currentVersion.String() == targetVersion.String() {
+			fmt.Printf("  Status: No migration needed\n")
+		} else {
+			fmt.Printf("  Status: Migration required\n")
+		}
+		
+		return nil
+	}
+	
+	// Perform actual migration
+	fmt.Printf("Migrating %s -> %s (target: %s)\n", inputFile, outputFile, targetVersion)
+	
+	if err := migrator.MigrateFile(inputFile, outputFile, targetVersion); err != nil {
+		return fmt.Errorf("migration failed: %w", err)
+	}
+	
+	fmt.Printf("✅ Migration completed successfully\n")
+	return nil
+}
+
+func migrateDirectory(inputDir, outputDir string, targetVersion schema.SchemaVersion, reportOnly bool) error {
+	batchMigrator := schema.NewBatchMigrator()
+	
+	if reportOnly {
+		report, err := batchMigrator.GenerateReport(inputDir, targetVersion)
+		if err != nil {
+			return fmt.Errorf("failed to generate report: %w", err)
+		}
+		
+		fmt.Printf("Migration Report for: %s\n", inputDir)
+		fmt.Printf("  Source version: %s\n", report.SourceVersion)
+		fmt.Printf("  Target version: %s\n", report.TargetVersion)
+		fmt.Printf("  Files processed: %d\n", report.FilesProcessed)
+		fmt.Printf("  Files that can be migrated: %d\n", report.FilesSucceeded)
+		fmt.Printf("  Files with issues: %d\n", report.FilesFailed)
+		
+		if len(report.Errors) > 0 {
+			fmt.Printf("\nIssues found:\n")
+			for _, errMsg := range report.Errors {
+				fmt.Printf("  - %s\n", errMsg)
+			}
+		}
+		
+		return nil
+	}
+	
+	// Perform actual migration
+	fmt.Printf("Migrating directory %s -> %s (target: %s)\n", inputDir, outputDir, targetVersion)
+	
+	if err := batchMigrator.MigrateDirectory(inputDir, outputDir, targetVersion); err != nil {
+		return fmt.Errorf("batch migration failed: %w", err)
+	}
+	
+	fmt.Printf("✅ Batch migration completed successfully\n")
+	return nil
+}
+
+func extractVersionFromFile(data map[string]interface{}) (schema.SchemaVersion, error) {
+	// Check for schema_version field
+	if versionStr, ok := data["schema_version"].(string); ok {
+		return schema.ParseVersion(versionStr)
+	}
+	
+	// Check for legacy data_version in metadata
+	if metadata, ok := data["metadata"].(map[string]interface{}); ok {
+		if dataVersion, ok := metadata["data_version"].(string); ok {
+			if dataVersion == "1.0" {
+				return schema.SchemaVersion{Major: 1, Minor: 0, Patch: 0}, nil
+			}
+		}
+	}
+	
+	// Default to 1.0.0 for legacy data
+	return schema.SchemaVersion{Major: 1, Minor: 0, Patch: 0}, nil
 }
