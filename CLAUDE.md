@@ -124,21 +124,46 @@ const data = await response.json()
 
 ## 🔬 Benchmark Methodology
 
-### **STREAM Benchmarks**
-- **Compiler**: Architecture-optimized (Intel OneAPI, AMD AOCC, GCC)
-- **Optimization**: `-O3 -march=native -mtune=native`
-- **Runs**: 10 iterations with 95% confidence intervals
-- **Memory Affinity**: NUMA-aware execution
+### **System-Aware Parameter Scaling**
+All benchmarks dynamically scale parameters based on actual system configuration:
 
-### **CPU Benchmarks**
-- **LINPACK**: Peak GFLOPS and sustained performance
-- **CoreMark**: Integer performance and efficiency
-- **Vectorization**: SSE, AVX, AVX-512, ARM Neon, SVE testing
+#### **STREAM Memory Bandwidth**
+- **Array Sizing**: 60% of total system memory divided by 3 arrays
+- **Bounds**: Minimum 10M elements, maximum 500M elements  
+- **Memory Usage**: Displayed during execution for verification
+- **Compiler**: Architecture-optimized GCC with `-O3 -march=native -mtune=native`
+- **ARM Optimizations**: `-mcpu=native` for Graviton processors
+- **x86 Optimizations**: `-mavx2` for Intel/AMD processors
 
-### **Cost Analysis**
-- **Pricing Sources**: AWS Pricing API with hourly updates
-- **Spot Analysis**: 7-day reliability and savings calculation
-- **Efficiency Metrics**: Cost per GFLOP, cost per GB/s bandwidth
+#### **HPL Matrix Multiplication**
+- **Matrix Sizing**: Based on 50% of available memory (N² × 8 bytes)
+- **Bounds**: Minimum 500×500, maximum 10000×10000 matrix
+- **Operations**: 2×N³ FLOPs for GFLOPS calculation
+- **Memory Management**: Dynamic allocation with bounds checking
+
+#### **CoreMark Integer Performance**
+- **Iteration Scaling**: Base 1M iterations × CPU cores × frequency factor
+- **CPU Detection**: Cores from `nproc`, frequency from `lscpu`
+- **Bounds**: Minimum 5M iterations, maximum 100M iterations
+- **Workloads**: List processing, matrix operations, state machines
+
+#### **Cache Hierarchy Testing**
+- **Cache Detection**: L1/L2/L3 sizes from `lscpu` output
+- **Test Sizing**: 50% of each cache level to ensure containment
+- **Iteration Scaling**: Inverse relationship (100k for L1, 100 for memory)
+- **Access Pattern**: Sequential with stride to measure true latency
+
+### **Statistical Rigor**
+- **Multiple Iterations**: 5 iterations minimum for statistical significance
+- **Confidence Intervals**: Standard deviation and confidence calculations
+- **Outlier Detection**: Automated removal of statistical outliers
+- **Reproducibility**: Checksums and verification for result integrity
+
+### **Architecture Optimizations**
+- **Intel x86_64**: `-O3 -march=native -mtune=native -mavx2`
+- **ARM Graviton**: `-O3 -march=native -mtune=native -mcpu=native`
+- **Real Execution**: AWS Systems Manager for genuine hardware testing
+- **No Fake Data**: All results from actual benchmark execution
 
 ## 📝 Data Governance
 

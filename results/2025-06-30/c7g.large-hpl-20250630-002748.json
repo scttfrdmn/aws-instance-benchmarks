@@ -1,0 +1,56 @@
+{
+  "execution_context": {
+    "benchmark_version": "latest",
+    "compiler_optimizations": "-O3 -march=native -mtune=native -mcpu=neoverse-v1",
+    "container_runtime": "docker"
+  },
+  "metadata": {
+    "benchmark_suite": "hpl",
+    "collection_method": "automated",
+    "data_version": "1.0",
+    "duration_seconds": 228.741978541,
+    "environment": {
+      "containerImage": "public.ecr.aws/aws-benchmarks/hpl:amd-zen4",
+      "duration": 228.741978541,
+      "timestamp": "2025-06-30T00:27:48Z"
+    },
+    "instanceFamily": "c7g",
+    "instanceType": "c7g.large",
+    "instance_id": "i-08a7985ea23645614",
+    "processorArchitecture": "graviton",
+    "region": "us-west-2",
+    "timestamp": "2025-06-30T00:27:48Z"
+  },
+  "performance": {
+    "memory": {
+      "hpl": {
+        "execution_time": 0.936,
+        "gflops": 2.136,
+        "matrix_size": 1000,
+        "time_unit": "seconds",
+        "unit": "GFLOPS"
+      },
+      "metadata": {
+        "timestamp": "2025-06-29T17:31:36-07:00"
+      }
+    }
+  },
+  "schema_version": "1.0.0",
+  "system_info": {
+    "architecture": "graviton",
+    "instance_family": "c7g",
+    "private_ip": "172.31.0.220",
+    "public_ip": "",
+    "status": "completed"
+  },
+  "validation": {
+    "checksums": {
+      "md5": "d41d8cd98f00b204e9800998ecf8427e",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reproducibility": {
+      "confidence": 1,
+      "runs": 1
+    }
+  }
+}

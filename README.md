@@ -106,7 +106,7 @@ go build -o cloud-benchmark-collector ./cmd
     --security-group sg-xxxxxxxxx \
     --subnet subnet-xxxxxxxxx \
     --s3-bucket my-benchmark-bucket \
-    --benchmarks stream,hpl \
+    --benchmarks stream,hpl,coremark,cache \
     --iterations 3 \
     --max-concurrency 8 \
     --enable-system-profiling
