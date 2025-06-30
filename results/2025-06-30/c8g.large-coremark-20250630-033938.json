@@ -1,0 +1,60 @@
+{
+  "execution_context": {
+    "benchmark_version": "latest",
+    "compiler_optimizations": "-O3 -march=native -mtune=native -mcpu=neoverse-v1",
+    "container_runtime": "docker"
+  },
+  "metadata": {
+    "benchmark_suite": "coremark",
+    "collection_method": "automated",
+    "data_version": "1.0",
+    "duration_seconds": 369.647835959,
+    "environment": {
+      "containerImage": "public.ecr.aws/aws-benchmarks/coremark:intel-skylake",
+      "duration": 369.647835959,
+      "timestamp": "2025-06-30T03:39:38Z"
+    },
+    "instanceFamily": "c8g",
+    "instanceType": "c8g.large",
+    "instance_id": "i-0d14edf91bd8ff3e4",
+    "processorArchitecture": "graviton",
+    "region": "us-west-2",
+    "timestamp": "2025-06-30T03:39:38Z"
+  },
+  "performance": {
+    "memory": {
+      "coremark": {
+        "execution_time": 0,
+        "iterations": 10000000,
+        "score": 27.75,
+        "score_std_dev": 0,
+        "time_std_dev": 0,
+        "time_unit": "seconds",
+        "unit": "operations/sec"
+      },
+      "metadata": {
+        "iterations": 4,
+        "statistical_confidence": "95%",
+        "timestamp": "2025-06-29T20:45:47-07:00"
+      }
+    }
+  },
+  "schema_version": "1.0.0",
+  "system_info": {
+    "architecture": "graviton",
+    "instance_family": "c8g",
+    "private_ip": "172.31.0.77",
+    "public_ip": "",
+    "status": "completed"
+  },
+  "validation": {
+    "checksums": {
+      "md5": "d41d8cd98f00b204e9800998ecf8427e",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reproducibility": {
+      "confidence": 1,
+      "runs": 1
+    }
+  }
+}

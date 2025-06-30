@@ -56,6 +56,11 @@ data/
 - **CPU Performance**: LINPACK, CoreMark, vectorization capabilities
 - **Cost Analysis**: Price/performance ratios, spot reliability
 
+### **Instance Family Classifications**
+- **C-Series (Compute Optimized)**: High-performance processors for compute-intensive workloads
+- **M-Series (General Purpose)**: Balanced compute, memory, and networking for diverse workloads  
+- **R-Series (Memory Optimized)**: High memory-to-CPU ratio for memory-intensive applications
+
 ### **Quality Standards**
 - **JSON Schema Validation**: All data validated against versioned schemas
 - **Statistical Rigor**: Multiple runs with confidence intervals
