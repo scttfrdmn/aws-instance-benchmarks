@@ -1298,20 +1298,43 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 }
 
 func getContainerTagForInstance(instanceType string) string {
-	// Extract family and map to container tag
-	family := extractInstanceFamily(instanceType)
+	// Extract family for precise container selection
+	family := extractInstanceFamily(instanceType) // e.g., "c7a" from "c7a.large"
 	
-	// Simple mapping - in real implementation would use the mappings file
-	if strings.Contains(family, "7i") || strings.Contains(family, "7") && strings.Contains(instanceType, "i") {
-		return "intel-icelake"
+	// Check 7th generation instances
+	if strings.Contains(family, "7") {
+		if strings.HasSuffix(family, "g") {
+			return "graviton3"    // c7g, m7g, r7g
+		}
+		if strings.Contains(family, "a") {
+			return "amd-zen4"     // c7a, m7a, r7a
+		}
+		if strings.Contains(family, "i") {
+			return "intel-icelake" // c7i, m7i, r7i
+		}
 	}
-	if strings.Contains(family, "7a") || strings.Contains(family, "7") && strings.Contains(instanceType, "a") {
-		return "amd-zen4"
+	
+	// Check 6th generation instances
+	if strings.Contains(family, "6") {
+		if strings.HasSuffix(family, "g") {
+			return "graviton2"    // c6g, m6g, r6g
+		}
+		if strings.Contains(family, "a") {
+			return "amd-zen3"     // c6a, m6a, r6a
+		}
+		if strings.Contains(family, "i") {
+			return "intel-icelake" // c6i, m6i, r6i
+		}
 	}
-	if strings.Contains(family, "7g") || strings.Contains(family, "7") && strings.Contains(instanceType, "g") {
-		return "graviton3"
+	
+	// Check 8th generation instances
+	if strings.Contains(family, "8") {
+		if strings.HasSuffix(family, "g") {
+			return "graviton4"    // c8g, m8g, r8g
+		}
 	}
-	return "intel-skylake" // Default fallback
+	
+	return "intel-skylake" // Default fallback for older generations
 }
 
 func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *awspkg.InstanceResult, benchmarkSuite string, region string) error {
@@ -1428,19 +1451,20 @@ func extractInstanceFamily(instanceType string) string {
 }
 
 func getArchitectureFromInstance(instanceType string) string {
-	// Determine architecture based on instance type for schema compliance
-	if strings.Contains(instanceType, "g") && (strings.HasPrefix(instanceType, "m") || 
-		strings.HasPrefix(instanceType, "c") || strings.HasPrefix(instanceType, "r") || 
-		strings.HasPrefix(instanceType, "t")) {
+	// Extract family for precise architecture detection
+	family := extractInstanceFamily(instanceType) // e.g., "c7a" from "c7a.large"
+	
+	// Check for Graviton instances (family ends with 'g')
+	if strings.HasSuffix(family, "g") {
 		return "graviton" // Graviton instances (c7g, m7g, r7g, etc.)
 	}
 	
-	// Detect AMD instances (family name contains 'a')
-	family := extractInstanceFamily(instanceType)
+	// Check for AMD instances (family contains 'a')
 	if strings.Contains(family, "a") {
 		return "amd" // AMD instances (c7a, m7a, r7a, etc.)
 	}
 	
+	// Default to Intel for other instances
 	return "intel" // Intel instances (c7i, m7i, r7i, etc.)
 }
 
