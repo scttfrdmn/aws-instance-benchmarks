@@ -902,6 +902,14 @@ func (o *Orchestrator) generateBenchmarkCommand(config BenchmarkConfig) string {
 		return o.generateHPLCommand()
 	case "dgemm":
 		return o.generateDGEMMCommand()
+	case "fftw":
+		return o.generateFFTWCommand()
+	case "vector_ops":
+		return o.generateVectorOpsCommand()
+	case "mixed_precision":
+		return o.generateMixedPrecisionCommand()
+	case "compilation":
+		return o.generateCompilationCommand()
 	case "coremark":
 		return o.generateCoreMarkCommand()
 	case "7zip":
@@ -1267,6 +1275,153 @@ func (o *Orchestrator) generateHPLCommand() string {
 	return o.generateDGEMMCommand()
 }
 
+// Placeholder implementations for remaining Phase 2 benchmarks
+func (o *Orchestrator) generateMixedPrecisionCommand() string {
+	return `#!/bin/bash
+echo "Mixed precision benchmark implementation coming soon..."
+echo "This will test FP16, FP32, and FP64 performance across architectures"
+`
+}
+
+func (o *Orchestrator) generateCompilationCommand() string {
+	return `#!/bin/bash
+echo "Compilation benchmark implementation coming soon..."
+echo "This will test real-world compilation performance (Linux kernel)"
+`
+}
+
+// Parsing functions for Phase 2 benchmarks
+func (o *Orchestrator) parseVectorOpsOutput(output string) (map[string]interface{}, error) {
+	lines := strings.Split(output, "\n")
+	
+	results := map[string]interface{}{
+		"vector_ops": map[string]interface{}{},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	}
+	
+	vectorResults := make(map[string]interface{})
+	
+	// Parse vector operations output
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Parse operation-specific results
+		if strings.Contains(line, "Average AXPY:") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				vectorResults["avg_axpy_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "Average DOT:") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				vectorResults["avg_dot_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "Average NORM:") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				vectorResults["avg_norm_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "Overall Average:") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				vectorResults["overall_avg_gflops"] = gflops
+			}
+		}
+	}
+	
+	vectorResults["unit"] = "GFLOPS"
+	vectorResults["benchmark_type"] = "blas_level1_vector_ops"
+	
+	if len(vectorResults) == 0 {
+		return nil, fmt.Errorf("no vector operations results found in output")
+	}
+	
+	results["vector_ops"] = vectorResults
+	return results, nil
+}
+
+func (o *Orchestrator) parseMixedPrecisionOutput(output string) (map[string]interface{}, error) {
+	// TODO: Implement mixed precision parsing
+	return map[string]interface{}{
+		"mixed_precision": map[string]interface{}{
+			"placeholder": "implementation_pending",
+		},
+	}, nil
+}
+
+func (o *Orchestrator) parseCompilationOutput(output string) (map[string]interface{}, error) {
+	// TODO: Implement compilation benchmark parsing
+	return map[string]interface{}{
+		"compilation": map[string]interface{}{
+			"placeholder": "implementation_pending",
+		},
+	}, nil
+}
+
+// Aggregation functions for Phase 2 benchmarks
+func (o *Orchestrator) aggregateVectorOpsResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	var axpyValues, dotValues, normValues, overallValues []float64
+	
+	for _, result := range allResults {
+		if vectorData, ok := result["vector_ops"].(map[string]interface{}); ok {
+			if axpy, ok := vectorData["avg_axpy_gflops"].(float64); ok {
+				axpyValues = append(axpyValues, axpy)
+			}
+			if dot, ok := vectorData["avg_dot_gflops"].(float64); ok {
+				dotValues = append(dotValues, dot)
+			}
+			if norm, ok := vectorData["avg_norm_gflops"].(float64); ok {
+				normValues = append(normValues, norm)
+			}
+			if overall, ok := vectorData["overall_avg_gflops"].(float64); ok {
+				overallValues = append(overallValues, overall)
+			}
+		}
+	}
+	
+	axpyStats := o.calculateStatistics(axpyValues)
+	dotStats := o.calculateStatistics(dotValues)
+	normStats := o.calculateStatistics(normValues)
+	overallStats := o.calculateStatistics(overallValues)
+	
+	return map[string]interface{}{
+		"vector_ops": map[string]interface{}{
+			"avg_axpy_gflops": axpyStats.Mean,
+			"axpy_std_dev": axpyStats.StdDev,
+			"avg_dot_gflops": dotStats.Mean,
+			"dot_std_dev": dotStats.StdDev,
+			"avg_norm_gflops": normStats.Mean,
+			"norm_std_dev": normStats.StdDev,
+			"overall_avg_gflops": overallStats.Mean,
+			"overall_std_dev": overallStats.StdDev,
+			"unit": "GFLOPS",
+			"benchmark_type": "blas_level1_vector_ops",
+		},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+			"iterations": len(allResults),
+			"statistical_confidence": "95%",
+			"operations": []string{"axpy", "dot", "norm"},
+		},
+	}, nil
+}
+
+func (o *Orchestrator) aggregateMixedPrecisionResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: Implement mixed precision aggregation
+	return map[string]interface{}{
+		"mixed_precision": map[string]interface{}{
+			"placeholder": "implementation_pending",
+		},
+	}, nil
+}
+
+func (o *Orchestrator) aggregateCompilationResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: Implement compilation benchmark aggregation
+	return map[string]interface{}{
+		"compilation": map[string]interface{}{
+			"placeholder": "implementation_pending",
+		},
+	}, nil
+}
+
 func (o *Orchestrator) generate7ZipCommand() string {
 	return `#!/bin/bash
 # Install development tools for 7-zip benchmark
@@ -1576,6 +1731,14 @@ func (o *Orchestrator) parseBenchmarkOutput(benchmarkSuite, output string) (map[
 		return o.parseHPLOutput(output)
 	case "dgemm":
 		return o.parseDGEMMOutput(output)
+	case "fftw":
+		return o.parseFFTWOutput(output)
+	case "vector_ops":
+		return o.parseVectorOpsOutput(output)
+	case "mixed_precision":
+		return o.parseMixedPrecisionOutput(output)
+	case "compilation":
+		return o.parseCompilationOutput(output)
 	case "coremark":
 		return o.parseCoreMarkOutput(output)
 	case "7zip":
@@ -2041,6 +2204,14 @@ func (o *Orchestrator) aggregateBenchmarkResults(benchmarkSuite string, allResul
 		return o.aggregateHPLResults(allResults)
 	case "dgemm":
 		return o.aggregateDGEMMResults(allResults)
+	case "fftw":
+		return o.aggregateFFTWResults(allResults)
+	case "vector_ops":
+		return o.aggregateVectorOpsResults(allResults)
+	case "mixed_precision":
+		return o.aggregateMixedPrecisionResults(allResults)
+	case "compilation":
+		return o.aggregateCompilationResults(allResults)
 	case "coremark":
 		return o.aggregateCoreMarkResults(allResults)
 	case "7zip":
@@ -2199,6 +2370,314 @@ func (o *Orchestrator) aggregateDGEMMResults(allResults []map[string]interface{}
 			"matrix_sizes": []string{"small", "medium", "large"},
 		},
 	}, nil
+}
+
+// PHASE 2: Advanced Scientific Computing Benchmarks
+
+func (o *Orchestrator) generateFFTWCommand() string {
+	return `#!/bin/bash
+# FFTW benchmark for scientific computing workloads
+sudo yum update -y
+sudo yum groupinstall -y "Development Tools"
+sudo yum install -y gcc bc fftw-devel
+
+# Get system information for benchmark scaling
+TOTAL_MEMORY_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+CPU_CORES=$(nproc)
+CPU_ARCH=$(uname -m)
+
+echo "FFTW Benchmark Configuration:"
+echo "  Total Memory: ${TOTAL_MEMORY_KB} KB"
+echo "  CPU Cores: ${CPU_CORES}"
+echo "  Architecture: ${CPU_ARCH}"
+
+# Calculate problem sizes based on available memory
+AVAILABLE_MEMORY_BYTES=$((TOTAL_MEMORY_KB * 30 / 100 * 1024))  # Use 30% of memory
+
+# 1D FFT sizes for signal processing
+FFT_1D_LARGE=$((AVAILABLE_MEMORY_BYTES / 16))  # 16 bytes per complex double
+if [ "$FFT_1D_LARGE" -gt 16777216 ]; then
+    FFT_1D_LARGE=16777216  # Cap at 16M points
+fi
+if [ "$FFT_1D_LARGE" -lt 1048576 ]; then
+    FFT_1D_LARGE=1048576   # Minimum 1M points
+fi
+
+FFT_1D_MEDIUM=$((FFT_1D_LARGE / 4))
+FFT_1D_SMALL=$((FFT_1D_LARGE / 16))
+
+# 2D FFT sizes for image processing
+FFT_2D_SIZE=$(echo "sqrt($FFT_1D_MEDIUM)" | bc -l | cut -d. -f1)
+if [ "$FFT_2D_SIZE" -gt 4096 ]; then
+    FFT_2D_SIZE=4096
+fi
+if [ "$FFT_2D_SIZE" -lt 512 ]; then
+    FFT_2D_SIZE=512
+fi
+
+# 3D FFT sizes for volume data
+FFT_3D_SIZE=$(echo "$FFT_2D_SIZE / 4" | bc)
+if [ "$FFT_3D_SIZE" -gt 512 ]; then
+    FFT_3D_SIZE=512
+fi
+if [ "$FFT_3D_SIZE" -lt 64 ]; then
+    FFT_3D_SIZE=64
+fi
+
+echo "Calculated FFT sizes:"
+echo "  1D FFT: ${FFT_1D_SMALL}, ${FFT_1D_MEDIUM}, ${FFT_1D_LARGE} points"
+echo "  2D FFT: ${FFT_2D_SIZE}x${FFT_2D_SIZE}"
+echo "  3D FFT: ${FFT_3D_SIZE}x${FFT_3D_SIZE}x${FFT_3D_SIZE}"
+
+# Create FFTW benchmark
+mkdir -p /tmp/benchmark
+cd /tmp/benchmark
+
+cat > fftw_benchmark.c << EOF
+/* Comprehensive FFTW benchmark for scientific computing */
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <math.h>
+#include <complex.h>
+#include <fftw3.h>
+
+double mysecond() {
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    return ((double) tp.tv_sec + (double) tp.tv_usec * 1.e-6);
+}
+
+// 1D FFT benchmark
+double benchmark_fft_1d(int N, int iterations) {
+    fftw_complex *in, *out;
+    fftw_plan plan;
+    double start_time, end_time, total_time;
+    
+    printf("\nBenchmarking 1D FFT with N=%d points\n", N);
+    
+    // Allocate memory
+    in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
+    out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
+    
+    if (!in || !out) {
+        printf("Error: Unable to allocate memory for 1D FFT N=%d\n", N);
+        return 0.0;
+    }
+    
+    // Initialize input data
+    for (int i = 0; i < N; i++) {
+        in[i] = 1.0 + 0.1 * sin(2.0 * M_PI * i / N) + 0.0 * I;
+    }
+    
+    // Create plan
+    plan = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    
+    // Warm-up run
+    fftw_execute(plan);
+    
+    // Benchmark runs
+    start_time = mysecond();
+    for (int iter = 0; iter < iterations; iter++) {
+        fftw_execute(plan);
+    }
+    end_time = mysecond();
+    
+    total_time = end_time - start_time;
+    
+    // Calculate GFLOPS (5 * N * log2(N) operations per FFT)
+    double operations = iterations * 5.0 * N * log2(N);
+    double gflops = operations / total_time / 1e9;
+    
+    printf("1D FFT Results (N=%d):\n", N);
+    printf("  Total time: %.6f seconds (%d iterations)\n", total_time, iterations);
+    printf("  Time per FFT: %.6f seconds\n", total_time / iterations);
+    printf("  GFLOPS: %.6f\n", gflops);
+    
+    // Cleanup
+    fftw_destroy_plan(plan);
+    fftw_free(in);
+    fftw_free(out);
+    
+    return gflops;
+}
+
+// 2D FFT benchmark
+double benchmark_fft_2d(int N, int iterations) {
+    fftw_complex *in, *out;
+    fftw_plan plan;
+    double start_time, end_time, total_time;
+    
+    printf("\nBenchmarking 2D FFT with %dx%d points\n", N, N);
+    
+    // Allocate memory
+    in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N * N);
+    out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N * N);
+    
+    if (!in || !out) {
+        printf("Error: Unable to allocate memory for 2D FFT %dx%d\n", N, N);
+        return 0.0;
+    }
+    
+    // Initialize input data
+    for (int i = 0; i < N * N; i++) {
+        in[i] = 1.0 + 0.1 * sin(2.0 * M_PI * i / (N * N)) + 0.0 * I;
+    }
+    
+    // Create plan
+    plan = fftw_plan_dft_2d(N, N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    
+    // Warm-up run
+    fftw_execute(plan);
+    
+    // Benchmark runs
+    start_time = mysecond();
+    for (int iter = 0; iter < iterations; iter++) {
+        fftw_execute(plan);
+    }
+    end_time = mysecond();
+    
+    total_time = end_time - start_time;
+    
+    // Calculate GFLOPS (5 * N^2 * log2(N^2) operations per 2D FFT)
+    double operations = iterations * 5.0 * N * N * log2(N * N);
+    double gflops = operations / total_time / 1e9;
+    
+    printf("2D FFT Results (%dx%d):\n", N, N);
+    printf("  Total time: %.6f seconds (%d iterations)\n", total_time, iterations);
+    printf("  Time per FFT: %.6f seconds\n", total_time / iterations);
+    printf("  GFLOPS: %.6f\n", gflops);
+    
+    // Cleanup
+    fftw_destroy_plan(plan);
+    fftw_free(in);
+    fftw_free(out);
+    
+    return gflops;
+}
+
+// 3D FFT benchmark
+double benchmark_fft_3d(int N, int iterations) {
+    fftw_complex *in, *out;
+    fftw_plan plan;
+    double start_time, end_time, total_time;
+    
+    printf("\nBenchmarking 3D FFT with %dx%dx%d points\n", N, N, N);
+    
+    // Allocate memory
+    in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N * N * N);
+    out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N * N * N);
+    
+    if (!in || !out) {
+        printf("Error: Unable to allocate memory for 3D FFT %dx%dx%d\n", N, N, N);
+        return 0.0;
+    }
+    
+    // Initialize input data
+    for (int i = 0; i < N * N * N; i++) {
+        in[i] = 1.0 + 0.1 * sin(2.0 * M_PI * i / (N * N * N)) + 0.0 * I;
+    }
+    
+    // Create plan
+    plan = fftw_plan_dft_3d(N, N, N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    
+    // Warm-up run
+    fftw_execute(plan);
+    
+    // Benchmark runs
+    start_time = mysecond();
+    for (int iter = 0; iter < iterations; iter++) {
+        fftw_execute(plan);
+    }
+    end_time = mysecond();
+    
+    total_time = end_time - start_time;
+    
+    // Calculate GFLOPS (5 * N^3 * log2(N^3) operations per 3D FFT)
+    double operations = iterations * 5.0 * N * N * N * log2(N * N * N);
+    double gflops = operations / total_time / 1e9;
+    
+    printf("3D FFT Results (%dx%dx%d):\n", N, N, N);
+    printf("  Total time: %.6f seconds (%d iterations)\n", total_time, iterations);
+    printf("  Time per FFT: %.6f seconds\n", total_time / iterations);
+    printf("  GFLOPS: %.6f\n", gflops);
+    
+    // Cleanup
+    fftw_destroy_plan(plan);
+    fftw_free(in);
+    fftw_free(out);
+    
+    return gflops;
+}
+
+int main() {
+    int fft_1d_small = ${FFT_1D_SMALL};
+    int fft_1d_medium = ${FFT_1D_MEDIUM};
+    int fft_1d_large = ${FFT_1D_LARGE};
+    int fft_2d_size = ${FFT_2D_SIZE};
+    int fft_3d_size = ${FFT_3D_SIZE};
+    
+    printf("FFTW Benchmark for Scientific Computing\n");
+    printf("=====================================\n");
+    printf("Architecture: ${CPU_ARCH}\n");
+    printf("CPU Cores: ${CPU_CORES}\n");
+    printf("Available Memory: ${TOTAL_MEMORY_KB} KB\n");
+    
+    // Calculate iterations based on problem size
+    int iter_1d_small = 100;
+    int iter_1d_medium = 50;
+    int iter_1d_large = 10;
+    int iter_2d = 10;
+    int iter_3d = 5;
+    
+    // Run 1D FFT benchmarks
+    double gflops_1d_small = benchmark_fft_1d(fft_1d_small, iter_1d_small);
+    double gflops_1d_medium = benchmark_fft_1d(fft_1d_medium, iter_1d_medium);
+    double gflops_1d_large = benchmark_fft_1d(fft_1d_large, iter_1d_large);
+    
+    // Run 2D FFT benchmark
+    double gflops_2d = benchmark_fft_2d(fft_2d_size, iter_2d);
+    
+    // Run 3D FFT benchmark
+    double gflops_3d = benchmark_fft_3d(fft_3d_size, iter_3d);
+    
+    printf("\n=== FFTW Performance Summary ===\n");
+    printf("1D FFT Small (%d points): %.2f GFLOPS\n", fft_1d_small, gflops_1d_small);
+    printf("1D FFT Medium (%d points): %.2f GFLOPS\n", fft_1d_medium, gflops_1d_medium);
+    printf("1D FFT Large (%d points): %.2f GFLOPS\n", fft_1d_large, gflops_1d_large);
+    printf("2D FFT (%dx%d): %.2f GFLOPS\n", fft_2d_size, fft_2d_size, gflops_2d);
+    printf("3D FFT (%dx%dx%d): %.2f GFLOPS\n", fft_3d_size, fft_3d_size, fft_3d_size, gflops_3d);
+    
+    // Calculate average performance
+    double avg_gflops = (gflops_1d_small + gflops_1d_medium + gflops_1d_large + gflops_2d + gflops_3d) / 5.0;
+    printf("\nOverall FFTW Performance: %.2f GFLOPS (average)\n", avg_gflops);
+    
+    // Performance analysis
+    printf("\nPerformance Analysis:\n");
+    printf("Peak 1D performance: %.2f GFLOPS\n", gflops_1d_small > gflops_1d_medium ? 
+           (gflops_1d_small > gflops_1d_large ? gflops_1d_small : gflops_1d_large) :
+           (gflops_1d_medium > gflops_1d_large ? gflops_1d_medium : gflops_1d_large));
+    printf("Memory scaling efficiency: %.1f%% (large/small ratio)\n", 
+           (gflops_1d_large / gflops_1d_small) * 100);
+    printf("Dimensionality efficiency: %.1f%% (3D/1D ratio)\n", 
+           (gflops_3d / gflops_1d_medium) * 100);
+    
+    return 0;
+}
+EOF
+
+# Compile with architecture-specific optimizations
+if [[ "$CPU_ARCH" == "aarch64" ]]; then
+    # ARM/Graviton optimizations
+    gcc -O3 -march=native -mtune=native -mcpu=native -funroll-loops -o fftw_benchmark fftw_benchmark.c -lfftw3 -lm
+else
+    # x86_64 optimizations
+    gcc -O3 -march=native -mtune=native -mavx2 -funroll-loops -o fftw_benchmark fftw_benchmark.c -lfftw3 -lm
+fi
+
+echo "Running FFTW benchmark..."
+./fftw_benchmark
+`
 }
 
 func (o *Orchestrator) aggregateCoreMarkResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
@@ -2382,6 +2861,483 @@ func (o *Orchestrator) aggregateSysbenchResults(allResults []map[string]interfac
 			"benchmark_type": "prime_calculation",
 		},
 	}, nil
+}
+
+func (o *Orchestrator) parseFFTWOutput(output string) (map[string]interface{}, error) {
+	lines := strings.Split(output, "\n")
+	
+	results := map[string]interface{}{
+		"fftw": map[string]interface{}{},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	}
+	
+	fftwResults := make(map[string]interface{})
+	
+	// Parse FFTW benchmark output
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Parse individual FFT results
+		// Format: "1D FFT Small (1048576 points): 78.45 GFLOPS"
+		if strings.Contains(line, "1D FFT Small") && strings.Contains(line, "GFLOPS") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["fft_1d_small_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "1D FFT Medium") && strings.Contains(line, "GFLOPS") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["fft_1d_medium_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "1D FFT Large") && strings.Contains(line, "GFLOPS") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["fft_1d_large_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "2D FFT") && strings.Contains(line, "GFLOPS") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["fft_2d_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "3D FFT") && strings.Contains(line, "GFLOPS") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["fft_3d_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "Overall FFTW Performance:") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["overall_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "Peak 1D performance:") {
+			if gflops := o.extractGFLOPSFromLine(line); gflops > 0 {
+				fftwResults["peak_1d_gflops"] = gflops
+			}
+		} else if strings.Contains(line, "Memory scaling efficiency:") {
+			parts := strings.Fields(line)
+			for _, part := range parts {
+				if strings.HasSuffix(part, "%") {
+					effStr := strings.TrimSuffix(part, "%")
+					if eff, err := strconv.ParseFloat(effStr, 64); err == nil {
+						fftwResults["memory_scaling_efficiency"] = eff / 100.0
+						break
+					}
+				}
+			}
+		} else if strings.Contains(line, "Dimensionality efficiency:") {
+			parts := strings.Fields(line)
+			for _, part := range parts {
+				if strings.HasSuffix(part, "%") {
+					effStr := strings.TrimSuffix(part, "%")
+					if eff, err := strconv.ParseFloat(effStr, 64); err == nil {
+						fftwResults["dimensionality_efficiency"] = eff / 100.0
+						break
+					}
+				}
+			}
+		}
+	}
+	
+	// Add metadata
+	fftwResults["unit"] = "GFLOPS"
+	fftwResults["benchmark_type"] = "fftw_scientific_computing"
+	
+	if len(fftwResults) == 0 {
+		return nil, fmt.Errorf("no FFTW results found in output")
+	}
+	
+	results["fftw"] = fftwResults
+	return results, nil
+}
+
+func (o *Orchestrator) extractGFLOPSFromLine(line string) float64 {
+	// Extract GFLOPS from lines like "1D FFT Small (1048576 points): 78.45 GFLOPS"
+	parts := strings.Fields(line)
+	for i, part := range parts {
+		if part == "GFLOPS" && i > 0 {
+			if gflops, err := strconv.ParseFloat(parts[i-1], 64); err == nil {
+				return gflops
+			}
+		}
+	}
+	return 0
+}
+
+func (o *Orchestrator) aggregateFFTWResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	var fft1dSmallValues, fft1dMediumValues, fft1dLargeValues []float64
+	var fft2dValues, fft3dValues, overallValues, peak1dValues []float64
+	var memScalingValues, dimEfficiencyValues []float64
+	
+	// Extract values from all iterations
+	for _, result := range allResults {
+		if fftwData, ok := result["fftw"].(map[string]interface{}); ok {
+			if fft1dSmall, ok := fftwData["fft_1d_small_gflops"].(float64); ok {
+				fft1dSmallValues = append(fft1dSmallValues, fft1dSmall)
+			}
+			if fft1dMedium, ok := fftwData["fft_1d_medium_gflops"].(float64); ok {
+				fft1dMediumValues = append(fft1dMediumValues, fft1dMedium)
+			}
+			if fft1dLarge, ok := fftwData["fft_1d_large_gflops"].(float64); ok {
+				fft1dLargeValues = append(fft1dLargeValues, fft1dLarge)
+			}
+			if fft2d, ok := fftwData["fft_2d_gflops"].(float64); ok {
+				fft2dValues = append(fft2dValues, fft2d)
+			}
+			if fft3d, ok := fftwData["fft_3d_gflops"].(float64); ok {
+				fft3dValues = append(fft3dValues, fft3d)
+			}
+			if overall, ok := fftwData["overall_gflops"].(float64); ok {
+				overallValues = append(overallValues, overall)
+			}
+			if peak1d, ok := fftwData["peak_1d_gflops"].(float64); ok {
+				peak1dValues = append(peak1dValues, peak1d)
+			}
+			if memScaling, ok := fftwData["memory_scaling_efficiency"].(float64); ok {
+				memScalingValues = append(memScalingValues, memScaling)
+			}
+			if dimEff, ok := fftwData["dimensionality_efficiency"].(float64); ok {
+				dimEfficiencyValues = append(dimEfficiencyValues, dimEff)
+			}
+		}
+	}
+	
+	// Calculate statistics for each metric
+	fft1dSmallStats := o.calculateStatistics(fft1dSmallValues)
+	fft1dMediumStats := o.calculateStatistics(fft1dMediumValues)
+	fft1dLargeStats := o.calculateStatistics(fft1dLargeValues)
+	fft2dStats := o.calculateStatistics(fft2dValues)
+	fft3dStats := o.calculateStatistics(fft3dValues)
+	overallStats := o.calculateStatistics(overallValues)
+	peak1dStats := o.calculateStatistics(peak1dValues)
+	memScalingStats := o.calculateStatistics(memScalingValues)
+	dimEfficiencyStats := o.calculateStatistics(dimEfficiencyValues)
+	
+	return map[string]interface{}{
+		"fftw": map[string]interface{}{
+			"fft_1d_small_gflops": fft1dSmallStats.Mean,
+			"fft_1d_small_std_dev": fft1dSmallStats.StdDev,
+			"fft_1d_medium_gflops": fft1dMediumStats.Mean,
+			"fft_1d_medium_std_dev": fft1dMediumStats.StdDev,
+			"fft_1d_large_gflops": fft1dLargeStats.Mean,
+			"fft_1d_large_std_dev": fft1dLargeStats.StdDev,
+			"fft_2d_gflops": fft2dStats.Mean,
+			"fft_2d_std_dev": fft2dStats.StdDev,
+			"fft_3d_gflops": fft3dStats.Mean,
+			"fft_3d_std_dev": fft3dStats.StdDev,
+			"overall_gflops": overallStats.Mean,
+			"overall_std_dev": overallStats.StdDev,
+			"peak_1d_gflops": peak1dStats.Mean,
+			"peak_1d_std_dev": peak1dStats.StdDev,
+			"memory_scaling_efficiency": memScalingStats.Mean,
+			"memory_scaling_std_dev": memScalingStats.StdDev,
+			"dimensionality_efficiency": dimEfficiencyStats.Mean,
+			"dimensionality_std_dev": dimEfficiencyStats.StdDev,
+			"unit": "GFLOPS",
+			"benchmark_type": "fftw_scientific_computing",
+		},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+			"iterations": len(allResults),
+			"statistical_confidence": "95%",
+			"fft_types": []string{"1d_small", "1d_medium", "1d_large", "2d", "3d"},
+		},
+	}, nil
+}
+
+// Vector Operations - BLAS Level 1 benchmarks
+func (o *Orchestrator) generateVectorOpsCommand() string {
+	return `#!/bin/bash
+# BLAS Level 1 vector operations benchmark
+sudo yum update -y
+sudo yum groupinstall -y "Development Tools"
+sudo yum install -y gcc bc
+
+# Get system information
+TOTAL_MEMORY_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+CPU_CORES=$(nproc)
+CPU_ARCH=$(uname -m)
+
+echo "Vector Operations Benchmark Configuration:"
+echo "  Total Memory: ${TOTAL_MEMORY_KB} KB"
+echo "  CPU Cores: ${CPU_CORES}"
+echo "  Architecture: ${CPU_ARCH}"
+
+# Calculate vector sizes based on available memory
+AVAILABLE_MEMORY_BYTES=$((TOTAL_MEMORY_KB * 40 / 100 * 1024))  # Use 40% of memory
+LARGE_VECTOR_SIZE=$((AVAILABLE_MEMORY_BYTES / 24))  # 3 vectors * 8 bytes per double
+
+# Ensure reasonable bounds
+if [ "$LARGE_VECTOR_SIZE" -lt 1000000 ]; then
+    LARGE_VECTOR_SIZE=1000000   # Minimum 1M elements
+fi
+if [ "$LARGE_VECTOR_SIZE" -gt 100000000 ]; then
+    LARGE_VECTOR_SIZE=100000000 # Maximum 100M elements
+fi
+
+MEDIUM_VECTOR_SIZE=$((LARGE_VECTOR_SIZE / 10))
+SMALL_VECTOR_SIZE=$((LARGE_VECTOR_SIZE / 100))
+
+echo "Vector sizes for testing:"
+echo "  Small: ${SMALL_VECTOR_SIZE} elements"
+echo "  Medium: ${MEDIUM_VECTOR_SIZE} elements"
+echo "  Large: ${LARGE_VECTOR_SIZE} elements"
+
+# Create vector operations benchmark
+mkdir -p /tmp/benchmark
+cd /tmp/benchmark
+
+cat > vector_ops.c << EOF
+/* BLAS Level 1 vector operations benchmark */
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <math.h>
+#include <string.h>
+
+double mysecond() {
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    return ((double) tp.tv_sec + (double) tp.tv_usec * 1.e-6);
+}
+
+// AXPY: Y = a*X + Y
+double benchmark_axpy(int N, int iterations) {
+    double *X, *Y;
+    double alpha = 2.5;
+    double start_time, end_time, total_time;
+    
+    printf("\\nBenchmarking AXPY with N=%d elements\\n", N);
+    
+    // Allocate vectors
+    X = (double*)malloc(N * sizeof(double));
+    Y = (double*)malloc(N * sizeof(double));
+    
+    if (!X || !Y) {
+        printf("Error: Unable to allocate memory for AXPY N=%d\\n", N);
+        return 0.0;
+    }
+    
+    // Initialize vectors
+    for (int i = 0; i < N; i++) {
+        X[i] = 1.0 + (double)i / N;
+        Y[i] = 2.0 + (double)i / N;
+    }
+    
+    // Warm-up run
+    for (int i = 0; i < N; i++) {
+        Y[i] = alpha * X[i] + Y[i];
+    }
+    
+    // Benchmark runs
+    start_time = mysecond();
+    for (int iter = 0; iter < iterations; iter++) {
+        for (int i = 0; i < N; i++) {
+            Y[i] = alpha * X[i] + Y[i];
+        }
+    }
+    end_time = mysecond();
+    
+    total_time = end_time - start_time;
+    
+    // Calculate GFLOPS (2 operations per element: multiply + add)
+    double operations = (double)iterations * N * 2.0;
+    double gflops = operations / total_time / 1e9;
+    
+    printf("AXPY Results (N=%d):\\n", N);
+    printf("  Total time: %.6f seconds (%d iterations)\\n", total_time, iterations);
+    printf("  GFLOPS: %.6f\\n", gflops);
+    
+    free(X);
+    free(Y);
+    
+    return gflops;
+}
+
+// DOT: result = sum(X[i] * Y[i])
+double benchmark_dot(int N, int iterations) {
+    double *X, *Y;
+    double result;
+    double start_time, end_time, total_time;
+    
+    printf("\\nBenchmarking DOT with N=%d elements\\n", N);
+    
+    // Allocate vectors
+    X = (double*)malloc(N * sizeof(double));
+    Y = (double*)malloc(N * sizeof(double));
+    
+    if (!X || !Y) {
+        printf("Error: Unable to allocate memory for DOT N=%d\\n", N);
+        return 0.0;
+    }
+    
+    // Initialize vectors
+    for (int i = 0; i < N; i++) {
+        X[i] = 1.0 + (double)i / N;
+        Y[i] = 2.0 + (double)i / N;
+    }
+    
+    // Warm-up run
+    result = 0.0;
+    for (int i = 0; i < N; i++) {
+        result += X[i] * Y[i];
+    }
+    
+    // Benchmark runs
+    start_time = mysecond();
+    for (int iter = 0; iter < iterations; iter++) {
+        result = 0.0;
+        for (int i = 0; i < N; i++) {
+            result += X[i] * Y[i];
+        }
+    }
+    end_time = mysecond();
+    
+    total_time = end_time - start_time;
+    
+    // Calculate GFLOPS (2 operations per element: multiply + add)
+    double operations = (double)iterations * N * 2.0;
+    double gflops = operations / total_time / 1e9;
+    
+    printf("DOT Results (N=%d):\\n", N);
+    printf("  Total time: %.6f seconds (%d iterations)\\n", total_time, iterations);
+    printf("  GFLOPS: %.6f\\n", gflops);
+    printf("  Final result: %.6f\\n", result);
+    
+    free(X);
+    free(Y);
+    
+    return gflops;
+}
+
+// NORM: result = sqrt(sum(X[i]^2))
+double benchmark_norm(int N, int iterations) {
+    double *X;
+    double result;
+    double start_time, end_time, total_time;
+    
+    printf("\\nBenchmarking NORM with N=%d elements\\n", N);
+    
+    // Allocate vector
+    X = (double*)malloc(N * sizeof(double));
+    
+    if (!X) {
+        printf("Error: Unable to allocate memory for NORM N=%d\\n", N);
+        return 0.0;
+    }
+    
+    // Initialize vector
+    for (int i = 0; i < N; i++) {
+        X[i] = 1.0 + (double)i / N;
+    }
+    
+    // Warm-up run
+    result = 0.0;
+    for (int i = 0; i < N; i++) {
+        result += X[i] * X[i];
+    }
+    result = sqrt(result);
+    
+    // Benchmark runs
+    start_time = mysecond();
+    for (int iter = 0; iter < iterations; iter++) {
+        result = 0.0;
+        for (int i = 0; i < N; i++) {
+            result += X[i] * X[i];
+        }
+        result = sqrt(result);
+    }
+    end_time = mysecond();
+    
+    total_time = end_time - start_time;
+    
+    // Calculate GFLOPS (2 operations per element + 1 sqrt per iteration)
+    double operations = (double)iterations * (N * 2.0 + 1.0);
+    double gflops = operations / total_time / 1e9;
+    
+    printf("NORM Results (N=%d):\\n", N);
+    printf("  Total time: %.6f seconds (%d iterations)\\n", total_time, iterations);
+    printf("  GFLOPS: %.6f\\n", gflops);
+    printf("  Final result: %.6f\\n", result);
+    
+    free(X);
+    
+    return gflops;
+}
+
+int main() {
+    int small_size = ${SMALL_VECTOR_SIZE};
+    int medium_size = ${MEDIUM_VECTOR_SIZE};
+    int large_size = ${LARGE_VECTOR_SIZE};
+    
+    printf("BLAS Level 1 Vector Operations Benchmark\\n");
+    printf("========================================\\n");
+    printf("Architecture: ${CPU_ARCH}\\n");
+    printf("CPU Cores: ${CPU_CORES}\\n");
+    printf("Total Memory: ${TOTAL_MEMORY_KB} KB\\n");
+    
+    // Calculate iterations based on vector size
+    int iter_small = 1000;
+    int iter_medium = 100;
+    int iter_large = 10;
+    
+    // AXPY benchmarks
+    printf("\\n=== AXPY Benchmarks ===\\n");
+    double axpy_small = benchmark_axpy(small_size, iter_small);
+    double axpy_medium = benchmark_axpy(medium_size, iter_medium);
+    double axpy_large = benchmark_axpy(large_size, iter_large);
+    
+    // DOT benchmarks
+    printf("\\n=== DOT Benchmarks ===\\n");
+    double dot_small = benchmark_dot(small_size, iter_small);
+    double dot_medium = benchmark_dot(medium_size, iter_medium);
+    double dot_large = benchmark_dot(large_size, iter_large);
+    
+    // NORM benchmarks
+    printf("\\n=== NORM Benchmarks ===\\n");
+    double norm_small = benchmark_norm(small_size, iter_small);
+    double norm_medium = benchmark_norm(medium_size, iter_medium);
+    double norm_large = benchmark_norm(large_size, iter_large);
+    
+    printf("\\n=== Vector Operations Summary ===\\n");
+    printf("AXPY Performance:\\n");
+    printf("  Small (%d): %.2f GFLOPS\\n", small_size, axpy_small);
+    printf("  Medium (%d): %.2f GFLOPS\\n", medium_size, axpy_medium);
+    printf("  Large (%d): %.2f GFLOPS\\n", large_size, axpy_large);
+    
+    printf("DOT Performance:\\n");
+    printf("  Small (%d): %.2f GFLOPS\\n", small_size, dot_small);
+    printf("  Medium (%d): %.2f GFLOPS\\n", medium_size, dot_medium);
+    printf("  Large (%d): %.2f GFLOPS\\n", large_size, dot_large);
+    
+    printf("NORM Performance:\\n");
+    printf("  Small (%d): %.2f GFLOPS\\n", small_size, norm_small);
+    printf("  Medium (%d): %.2f GFLOPS\\n", medium_size, norm_medium);
+    printf("  Large (%d): %.2f GFLOPS\\n", large_size, norm_large);
+    
+    // Calculate overall performance
+    double avg_axpy = (axpy_small + axpy_medium + axpy_large) / 3.0;
+    double avg_dot = (dot_small + dot_medium + dot_large) / 3.0;
+    double avg_norm = (norm_small + norm_medium + norm_large) / 3.0;
+    double overall_avg = (avg_axpy + avg_dot + avg_norm) / 3.0;
+    
+    printf("\\nOverall Performance:\\n");
+    printf("  Average AXPY: %.2f GFLOPS\\n", avg_axpy);
+    printf("  Average DOT: %.2f GFLOPS\\n", avg_dot);
+    printf("  Average NORM: %.2f GFLOPS\\n", avg_norm);
+    printf("  Overall Average: %.2f GFLOPS\\n", overall_avg);
+    
+    return 0;
+}
+EOF
+
+# Compile with architecture-specific optimizations
+if [[ "$CPU_ARCH" == "aarch64" ]]; then
+    # ARM/Graviton optimizations
+    gcc -O3 -march=native -mtune=native -mcpu=native -funroll-loops -o vector_ops vector_ops.c -lm
+else
+    # x86_64 optimizations
+    gcc -O3 -march=native -mtune=native -mavx2 -funroll-loops -o vector_ops vector_ops.c -lm
+fi
+
+echo "Running vector operations benchmark..."
+./vector_ops
+`
 }
 
 type Statistics struct {
