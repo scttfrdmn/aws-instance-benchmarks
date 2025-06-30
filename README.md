@@ -195,11 +195,30 @@ func main() {
 }
 ```
 
+### **Price/Performance Analysis**
+```bash
+# Analyze cost efficiency of benchmark results
+go run cmd/analyze_price_performance.go results/2025-06-30
+
+# Generate comprehensive efficiency rankings
+{
+  "summary": {
+    "best_value_instance": "c7g.large",
+    "best_value_score": 67558.34
+  },
+  "rankings": {
+    "by_memory_efficiency": [
+      {"rank": 1, "instance_type": "c7g.large", "score": 0.00148}
+    ]
+  }
+}
+```
+
 ### **Integration Examples**
-- **ComputeCompass**: Performance-aware instance recommendations
-- **Research Tools**: Data-driven instance selection
-- **Cost Optimization**: Price/performance analysis
-- **Academic Research**: HPC cloud computing studies
+- **ComputeCompass**: Performance-aware instance recommendations with cost analysis
+- **Research Tools**: Data-driven instance selection with ROI optimization
+- **Cost Optimization**: Real-time price/performance analysis and rankings
+- **Academic Research**: HPC cloud computing studies with statistical rigor
 
 ## 🔧 Infrastructure Configuration
 

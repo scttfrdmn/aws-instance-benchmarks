@@ -106,6 +106,7 @@ func (p *PricingService) getHardcodedPricing(instanceType, region string) (float
 		"c7a.48xlarge": 7.3440,
 
 		// C7g instances (Graviton3 - Compute optimized)
+		"c7g.medium":   0.0362,
 		"c7g.large":    0.0725,
 		"c7g.xlarge":   0.1450,
 		"c7g.2xlarge":  0.2900,

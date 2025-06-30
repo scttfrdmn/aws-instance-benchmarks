@@ -165,6 +165,13 @@ All benchmarks dynamically scale parameters based on actual system configuration
 - **Real Execution**: AWS Systems Manager for genuine hardware testing
 - **No Fake Data**: All results from actual benchmark execution
 
+### **Price/Performance Integration**
+- **Real-Time Pricing**: AWS pricing data integration with regional multipliers
+- **Cost Efficiency Metrics**: Cost per GB/s, cost per GFLOPS, cost per MOps
+- **Value Rankings**: Automated efficiency ratings (Excellent, Very Good, Good, Fair, Poor)
+- **ROI Analysis**: Price/performance ratios with baseline comparisons
+- **Instance Selection Guidance**: Data-driven recommendations for optimal cost efficiency
+
 ## 📝 Data Governance
 
 ### **Schema Evolution**
