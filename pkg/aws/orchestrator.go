@@ -730,7 +730,7 @@ func (o *Orchestrator) updateInstanceDetails(ctx context.Context, result *Instan
 
 func (o *Orchestrator) runBenchmarkOnInstance(ctx context.Context, result *InstanceResult, config BenchmarkConfig) (map[string]interface{}, error) {
 	// Validate benchmark suite
-	supportedBenchmarks := []string{"stream", "hpl", "coremark", "cache"}
+	supportedBenchmarks := []string{"stream", "hpl", "dgemm", "coremark", "7zip", "sysbench", "cache"}
 	supported := false
 	for _, benchmark := range supportedBenchmarks {
 		if config.BenchmarkSuite == benchmark {
@@ -900,8 +900,14 @@ func (o *Orchestrator) generateBenchmarkCommand(config BenchmarkConfig) string {
 		return o.generateSTREAMCommand()
 	case "hpl":
 		return o.generateHPLCommand()
+	case "dgemm":
+		return o.generateDGEMMCommand()
 	case "coremark":
 		return o.generateCoreMarkCommand()
+	case "7zip":
+		return o.generate7ZipCommand()
+	case "sysbench":
+		return o.generateSysbenchCommand()
 	case "cache":
 		return o.generateCacheCommand()
 	default:
@@ -1064,50 +1070,55 @@ echo "Running STREAM benchmark..."
 `
 }
 
-func (o *Orchestrator) generateHPLCommand() string {
+func (o *Orchestrator) generateDGEMMCommand() string {
 	return `#!/bin/bash
-# Install development tools for HPL compilation
+# Enhanced DGEMM benchmark for scientific computing
 sudo yum update -y
 sudo yum groupinstall -y "Development Tools"
-sudo yum install -y gcc
+sudo yum install -y gcc bc
 
 # Get system information for benchmark scaling
 TOTAL_MEMORY_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 CPU_CORES=$(nproc)
+CPU_ARCH=$(uname -m)
 
-echo "System Configuration:"
+echo "Enhanced DGEMM Benchmark Configuration:"
 echo "  Total Memory: ${TOTAL_MEMORY_KB} KB"
 echo "  CPU Cores: ${CPU_CORES}"
+echo "  Architecture: ${CPU_ARCH}"
 
-# Calculate matrix size based on available memory
-# Use 50% of memory for matrix storage (N^2 * 8 bytes per double)
-AVAILABLE_MEMORY_BYTES=$((TOTAL_MEMORY_KB * 50 / 100 * 1024))
-MATRIX_SIZE=$(echo "sqrt($AVAILABLE_MEMORY_BYTES / 8)" | bc -l | cut -d. -f1)
+# Calculate multiple matrix sizes for comprehensive testing
+# Test multiple matrix sizes relevant to scientific computing
+AVAILABLE_MEMORY_BYTES=$((TOTAL_MEMORY_KB * 40 / 100 * 1024))
+LARGE_MATRIX_SIZE=$(echo "sqrt($AVAILABLE_MEMORY_BYTES / 24)" | bc -l | cut -d. -f1)  # 3 matrices
 
-# Ensure reasonable bounds (minimum 500, maximum 10000)
-if [ "$MATRIX_SIZE" -lt 500 ]; then
-    MATRIX_SIZE=500
+# Ensure reasonable bounds
+if [ "$LARGE_MATRIX_SIZE" -lt 512 ]; then
+    LARGE_MATRIX_SIZE=512
 fi
-if [ "$MATRIX_SIZE" -gt 10000 ]; then
-    MATRIX_SIZE=10000
+if [ "$LARGE_MATRIX_SIZE" -gt 8192 ]; then
+    LARGE_MATRIX_SIZE=8192
 fi
 
-echo "Calculated matrix size: ${MATRIX_SIZE}x${MATRIX_SIZE}"
-echo "Memory usage: $((MATRIX_SIZE * MATRIX_SIZE * 8 / 1024 / 1024)) MB"
+MEDIUM_MATRIX_SIZE=$((LARGE_MATRIX_SIZE / 2))
+SMALL_MATRIX_SIZE=1024
 
-# Create and compile HPL benchmark
+echo "Matrix sizes for testing:"
+echo "  Small: ${SMALL_MATRIX_SIZE}x${SMALL_MATRIX_SIZE}"
+echo "  Medium: ${MEDIUM_MATRIX_SIZE}x${MEDIUM_MATRIX_SIZE}"
+echo "  Large: ${LARGE_MATRIX_SIZE}x${LARGE_MATRIX_SIZE}"
+
+# Create enhanced DGEMM benchmark
 mkdir -p /tmp/benchmark
 cd /tmp/benchmark
 
-# Create a simplified HPL-like dense matrix multiplication benchmark
-cat > hpl_simple.c << EOF
-/* System-aware HPL-like benchmark for dense matrix operations */
+cat > dgemm_enhanced.c << EOF
+/* Enhanced DGEMM benchmark for scientific computing analysis */
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <math.h>
-
-#define MATRIX_SIZE ${MATRIX_SIZE}
+#include <string.h>
 
 double mysecond() {
     struct timeval tp;
@@ -1115,27 +1126,48 @@ double mysecond() {
     return ((double) tp.tv_sec + (double) tp.tv_usec * 1.e-6);
 }
 
-// Simple matrix multiplication for GFLOPS calculation
-void matrix_multiply(double *A, double *B, double *C, int N) {
+// Optimized DGEMM implementation with loop unrolling
+void dgemm_optimized(double *A, double *B, double *C, int N, double alpha, double beta) {
+    // C = alpha * A * B + beta * C (standard DGEMM operation)
+    
+    // First apply beta scaling to C
+    if (beta != 1.0) {
+        for (int i = 0; i < N * N; i++) {
+            C[i] *= beta;
+        }
+    }
+    
+    // Perform matrix multiplication with alpha scaling
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             double sum = 0.0;
-            for (int k = 0; k < N; k++) {
+            
+            // Unroll inner loop for better performance
+            int k;
+            for (k = 0; k < N - 3; k += 4) {
+                sum += A[i*N + k] * B[k*N + j];
+                sum += A[i*N + k + 1] * B[(k+1)*N + j];
+                sum += A[i*N + k + 2] * B[(k+2)*N + j];
+                sum += A[i*N + k + 3] * B[(k+3)*N + j];
+            }
+            
+            // Handle remaining elements
+            for (; k < N; k++) {
                 sum += A[i*N + k] * B[k*N + j];
             }
-            C[i*N + j] = sum;
+            
+            C[i*N + j] += alpha * sum;
         }
     }
 }
 
-int main() {
-    int N = MATRIX_SIZE;
+// Test DGEMM with different matrix sizes
+double test_dgemm_size(int N, double alpha, double beta) {
     double *A, *B, *C;
     double start_time, end_time, gflops;
     
-    printf("HPL-like Benchmark Configuration:\n");
-    printf("Matrix size: %dx%d\n", N, N);
-    printf("Memory usage: %.2f MB\n", (double)(3 * N * N * sizeof(double)) / 1024.0 / 1024.0);
+    printf("\nTesting DGEMM with N=%d (%.1f MB per matrix)\n", 
+           N, (double)(N * N * sizeof(double)) / 1024.0 / 1024.0);
     
     // Allocate matrices
     A = (double*)malloc(N * N * sizeof(double));
@@ -1143,215 +1175,175 @@ int main() {
     C = (double*)malloc(N * N * sizeof(double));
     
     if (!A || !B || !C) {
-        printf("Error: Unable to allocate memory for matrices\n");
-        return 1;
+        printf("Error: Unable to allocate memory for N=%d\n", N);
+        return 0.0;
     }
     
-    // Initialize matrices
-    printf("Initializing matrices...\n");
+    // Initialize matrices with realistic data
     for (int i = 0; i < N * N; i++) {
-        A[i] = 1.0 + (double)i / (N * N);
-        B[i] = 2.0 + (double)i / (N * N);
+        A[i] = 1.0 + ((double)rand() / RAND_MAX) * 0.1;  // Near 1.0 with small variation
+        B[i] = 1.0 + ((double)rand() / RAND_MAX) * 0.1;
         C[i] = 0.0;
     }
     
-    // Perform matrix multiplication
-    printf("Running matrix multiplication...\n");
+    // Warm-up run
+    dgemm_optimized(A, B, C, N > 512 ? 512 : N, alpha, beta);
+    
+    // Actual benchmark run
+    printf("Running DGEMM benchmark (alpha=%.1f, beta=%.1f)...\n", alpha, beta);
     start_time = mysecond();
-    matrix_multiply(A, B, C, N);
+    dgemm_optimized(A, B, C, N, alpha, beta);
     end_time = mysecond();
     
-    // Calculate GFLOPS (2*N^3 operations)
-    double operations = 2.0 * N * N * N;
+    // Calculate GFLOPS
+    // DGEMM operations: N^3 multiplications + N^3 additions + N^2 beta scaling
+    double operations = 2.0 * N * N * N + N * N;
     double elapsed_time = end_time - start_time;
     gflops = operations / elapsed_time / 1e9;
     
-    printf("Elapsed time: %.6f seconds\n", elapsed_time);
-    printf("GFLOPS: %.6f\n", gflops);
+    printf("DGEMM Results (N=%d):\n", N);
+    printf("  Elapsed time: %.6f seconds\n", elapsed_time);
+    printf("  GFLOPS: %.6f\n", gflops);
+    printf("  Memory bandwidth utilization: %.2f%%\n", 
+           (3.0 * N * N * sizeof(double) / elapsed_time / 1e9) * 100.0 / 50.0); // Assume ~50 GB/s theoretical
     
     free(A);
     free(B);
     free(C);
     
+    return gflops;
+}
+
+int main() {
+    int small_size = ${SMALL_MATRIX_SIZE};
+    int medium_size = ${MEDIUM_MATRIX_SIZE};
+    int large_size = ${LARGE_MATRIX_SIZE};
+    
+    printf("Enhanced DGEMM Benchmark for Scientific Computing\n");
+    printf("================================================\n");
+    printf("Architecture: ${CPU_ARCH}\n");
+    printf("CPU Cores: ${CPU_CORES}\n");
+    printf("Total Memory: ${TOTAL_MEMORY_KB} KB\n");
+    
+    double gflops_small = test_dgemm_size(small_size, 1.0, 0.0);   // Standard matrix multiply
+    double gflops_medium = test_dgemm_size(medium_size, 2.0, 1.0); // Scaled operation
+    double gflops_large = test_dgemm_size(large_size, 1.5, 0.5);   // Mixed operation
+    
+    printf("\n=== DGEMM Performance Summary ===\n");
+    printf("Small matrix (%dx%d): %.2f GFLOPS\n", small_size, small_size, gflops_small);
+    printf("Medium matrix (%dx%d): %.2f GFLOPS\n", medium_size, medium_size, gflops_medium);
+    printf("Large matrix (%dx%d): %.2f GFLOPS\n", large_size, large_size, gflops_large);
+    
+    // Calculate efficiency metrics
+    double peak_gflops = gflops_small > gflops_medium ? gflops_small : gflops_medium;
+    peak_gflops = peak_gflops > gflops_large ? peak_gflops : gflops_large;
+    
+    printf("\nPerformance Analysis:\n");
+    printf("Peak GFLOPS: %.2f\n", peak_gflops);
+    printf("Memory-bound efficiency: %.1f%% (large matrix)\n", (gflops_large / peak_gflops) * 100);
+    printf("Cache efficiency: %.1f%% (small matrix)\n", (gflops_small / peak_gflops) * 100);
+    
     return 0;
 }
 EOF
 
 # Compile with architecture-specific optimizations
-CPU_ARCH=$(uname -m)
 if [[ "$CPU_ARCH" == "aarch64" ]]; then
-    # ARM/Graviton optimizations
-    gcc -O3 -march=native -mtune=native -mcpu=native -o hpl_simple hpl_simple.c -lm
+    # ARM/Graviton optimizations - use SVE if available
+    gcc -O3 -march=native -mtune=native -mcpu=native -funroll-loops -o dgemm_enhanced dgemm_enhanced.c -lm
 else
-    # x86_64 optimizations
-    gcc -O3 -march=native -mtune=native -mavx2 -o hpl_simple hpl_simple.c -lm
+    # x86_64 optimizations - use AVX/AVX2/AVX-512
+    gcc -O3 -march=native -mtune=native -mavx2 -funroll-loops -o dgemm_enhanced dgemm_enhanced.c -lm
 fi
 
-# Run the benchmark
-echo "Running HPL benchmark..."
-./hpl_simple
+echo "Running enhanced DGEMM benchmark..."
+./dgemm_enhanced
 `
 }
 
-func (o *Orchestrator) generateCoreMarkCommand() string {
+// Keep original HPL function for backward compatibility
+func (o *Orchestrator) generateHPLCommand() string {
+	// Delegate to enhanced DGEMM implementation
+	return o.generateDGEMMCommand()
+}
+
+func (o *Orchestrator) generate7ZipCommand() string {
 	return `#!/bin/bash
-# Install development tools for CoreMark
+# Install development tools for 7-zip benchmark
 sudo yum update -y
-sudo yum groupinstall -y "Development Tools"
-sudo yum install -y gcc
+sudo yum install -y wget xz gcc-c++
 
 # Get system information for benchmark scaling
 CPU_CORES=$(nproc)
 CPU_FREQ=$(lscpu | grep "CPU MHz" | awk '{print $3}' | cut -d. -f1)
-L1_CACHE_KB=$(lscpu | grep "L1d cache" | awk '{print $3}' | sed 's/[KMG]$//')
+CPU_ARCH=$(uname -m)
 
 echo "System Configuration:"
 echo "  CPU Cores: ${CPU_CORES}"
 echo "  CPU Frequency: ${CPU_FREQ} MHz"
-echo "  L1 Cache: ${L1_CACHE_KB} KB"
+echo "  Architecture: ${CPU_ARCH}"
 
-# Calculate iterations based on CPU characteristics
-# Base iterations: 1M per core, scaled by frequency
-BASE_ITERATIONS=1000000
-CORE_SCALING=$((CPU_CORES > 0 ? CPU_CORES : 1))
-FREQ_SCALING=$((CPU_FREQ > 1000 ? CPU_FREQ / 1000 : 1))
-ITERATIONS=$((BASE_ITERATIONS * CORE_SCALING * FREQ_SCALING))
-
-# Ensure minimum runtime (at least 5M iterations)
-if [ "$ITERATIONS" -lt 5000000 ]; then
-    ITERATIONS=5000000
-fi
-
-# Ensure maximum runtime (no more than 100M iterations)
-if [ "$ITERATIONS" -gt 100000000 ]; then
-    ITERATIONS=100000000
-fi
-
-echo "Calculated iterations: ${ITERATIONS}"
-
-# Create and compile CoreMark benchmark
+# Create benchmark directory
 mkdir -p /tmp/benchmark
 cd /tmp/benchmark
 
-# Create a simplified CoreMark-like integer benchmark
-cat > coremark.c << EOF
-/* System-aware CoreMark-like integer benchmark */
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <string.h>
-
-#define ITERATIONS ${ITERATIONS}
-
-double mysecond() {
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    return ((double) tp.tv_sec + (double) tp.tv_usec * 1.e-6);
-}
-
-// Integer operations similar to CoreMark
-unsigned int core_bench_list(unsigned int N) {
-    unsigned int retval = 0;
-    unsigned int i, j;
-    
-    for (i = 0; i < N; i++) {
-        for (j = 0; j < 100; j++) {
-            retval += i * j;
-            retval ^= (i << 1) | (j >> 1);
-            retval += (i & 0x55) + (j & 0xAA);
-        }
-    }
-    return retval;
-}
-
-unsigned int core_bench_matrix(unsigned int N) {
-    unsigned int retval = 0;
-    unsigned int i, j, k;
-    unsigned int matrix[16][16];
-    
-    // Initialize matrix
-    for (i = 0; i < 16; i++) {
-        for (j = 0; j < 16; j++) {
-            matrix[i][j] = i * j + 1;
-        }
-    }
-    
-    for (i = 0; i < N / 1000; i++) {
-        // Matrix operations
-        for (j = 0; j < 16; j++) {
-            for (k = 0; k < 16; k++) {
-                matrix[j][k] = matrix[j][k] * 2 + matrix[k][j];
-                retval += matrix[j][k];
-            }
-        }
-    }
-    return retval;
-}
-
-unsigned int core_bench_state(unsigned int N) {
-    unsigned int retval = 0;
-    unsigned int i;
-    unsigned int state = 0x12345678;
-    
-    for (i = 0; i < N; i++) {
-        state = ((state & 0xFFFF) << 16) | ((state >> 16) & 0xFFFF);
-        state ^= 0x5A5A5A5A;
-        state += i;
-        retval += state;
-    }
-    return retval;
-}
-
-int main() {
-    double start_time, end_time, elapsed_time;
-    unsigned int results[3];
-    unsigned int total_ops;
-    double operations_per_sec;
-    
-    printf("CoreMark-like Benchmark Configuration:\n");
-    printf("Iterations: %d\n", ITERATIONS);
-    printf("CPU Cores: %d\n", ${CPU_CORES});
-    
-    printf("Running CoreMark-like benchmark...\n");
-    
-    start_time = mysecond();
-    
-    // Run three different workloads
-    results[0] = core_bench_list(ITERATIONS);
-    results[1] = core_bench_matrix(ITERATIONS);
-    results[2] = core_bench_state(ITERATIONS);
-    
-    end_time = mysecond();
-    elapsed_time = end_time - start_time;
-    
-    total_ops = ITERATIONS * 3; // Three benchmark components
-    operations_per_sec = total_ops / elapsed_time;
-    
-    printf("CoreMark Results:\n");
-    printf("Elapsed time: %.6f seconds\n", elapsed_time);
-    printf("Operations per second: %.0f\n", operations_per_sec);
-    printf("CoreMark Score: %.2f\n", operations_per_sec / 1000000.0);
-    
-    // Verification
-    printf("Verification: 0x%08X, 0x%08X, 0x%08X\n", results[0], results[1], results[2]);
-    
-    return 0;
-}
-EOF
-
-# Compile with architecture-specific optimizations
-CPU_ARCH=$(uname -m)
+# Download 7-zip benchmark
 if [[ "$CPU_ARCH" == "aarch64" ]]; then
-    # ARM/Graviton optimizations
-    gcc -O3 -march=native -mtune=native -mcpu=native -o coremark coremark.c
+    # ARM64 version
+    wget -q https://www.7-zip.org/a/7z2301-linux-arm64.tar.xz
+    tar -xf 7z2301-linux-arm64.tar.xz
 else
-    # x86_64 optimizations
-    gcc -O3 -march=native -mtune=native -mavx2 -o coremark coremark.c
+    # x86_64 version  
+    wget -q https://www.7-zip.org/a/7z2301-linux-x64.tar.xz
+    tar -xf 7z2301-linux-x64.tar.xz
 fi
 
-# Run the benchmark
-echo "Running CoreMark benchmark..."
-./coremark
+echo "Running 7-zip benchmark (industry standard compression test)..."
+
+# Run multi-threaded 7-zip benchmark
+echo "=== Multi-threaded 7-zip benchmark ==="
+./7zzs b -mmt=${CPU_CORES}
+
+echo ""
+echo "=== Single-threaded 7-zip benchmark ==="  
+./7zzs b -mmt=1
+`
+}
+
+func (o *Orchestrator) generateSysbenchCommand() string {
+	return `#!/bin/bash
+# Install sysbench for CPU performance testing
+sudo yum update -y
+sudo yum install -y sysbench
+
+# Get system information
+CPU_CORES=$(nproc)
+CPU_ARCH=$(uname -m)
+
+echo "System Configuration:"
+echo "  CPU Cores: ${CPU_CORES}"
+echo "  Architecture: ${CPU_ARCH}"
+
+echo "Running Sysbench CPU benchmark (prime number calculation)..."
+
+# Multi-threaded sysbench CPU test
+echo "=== Multi-threaded Sysbench CPU test ==="
+sysbench cpu --cpu-max-prime=20000 --threads=${CPU_CORES} run
+
+echo ""
+echo "=== Single-threaded Sysbench CPU test ==="
+sysbench cpu --cpu-max-prime=20000 --threads=1 run
+`
+}
+
+// DEPRECATED: generateCoreMarkCommand - replaced with industry-standard benchmarks
+// This function is kept for backward compatibility but should not be used
+func (o *Orchestrator) generateCoreMarkCommand() string {
+	return `#!/bin/bash
+echo "WARNING: Custom CoreMark benchmark is deprecated."
+echo "Use 7-zip or Sysbench for industry-standard CPU benchmarks."
+echo "This custom benchmark produces results that are not comparable to industry standards."
+exit 1
 `
 }
 
@@ -1582,8 +1574,14 @@ func (o *Orchestrator) parseBenchmarkOutput(benchmarkSuite, output string) (map[
 		return o.parseSTREAMOutput(output)
 	case "hpl":
 		return o.parseHPLOutput(output)
+	case "dgemm":
+		return o.parseDGEMMOutput(output)
 	case "coremark":
 		return o.parseCoreMarkOutput(output)
+	case "7zip":
+		return o.parse7ZipOutput(output)
+	case "sysbench":
+		return o.parseSysbenchOutput(output)
 	case "cache":
 		return o.parseCacheOutput(output)
 	default:
@@ -1718,6 +1716,106 @@ func (o *Orchestrator) parseHPLOutput(output string) (map[string]interface{}, er
 	return results, nil
 }
 
+func (o *Orchestrator) parseDGEMMOutput(output string) (map[string]interface{}, error) {
+	lines := strings.Split(output, "\n")
+	
+	results := map[string]interface{}{
+		"dgemm": map[string]interface{}{},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	}
+	
+	dgemmResults := make(map[string]interface{})
+	matrixSizes := []string{}
+	gflopsValues := make(map[string]float64)
+	
+	// Parse enhanced DGEMM output
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Parse individual matrix size results
+		// Format: "Small matrix (1024x1024): 45.67 GFLOPS"
+		if strings.Contains(line, "matrix (") && strings.Contains(line, "GFLOPS") {
+			parts := strings.Split(line, ":")
+			if len(parts) == 2 {
+				// Extract matrix type and size
+				leftPart := strings.TrimSpace(parts[0])
+				rightPart := strings.TrimSpace(parts[1])
+				
+				// Get GFLOPS value
+				gflopsStr := strings.Fields(rightPart)[0]
+				if gflops, err := strconv.ParseFloat(gflopsStr, 64); err == nil {
+					if strings.Contains(leftPart, "Small") {
+						gflopsValues["small_matrix_gflops"] = gflops
+						matrixSizes = append(matrixSizes, "small")
+					} else if strings.Contains(leftPart, "Medium") {
+						gflopsValues["medium_matrix_gflops"] = gflops
+						matrixSizes = append(matrixSizes, "medium")
+					} else if strings.Contains(leftPart, "Large") {
+						gflopsValues["large_matrix_gflops"] = gflops
+						matrixSizes = append(matrixSizes, "large")
+					}
+				}
+			}
+		}
+		
+		// Parse peak performance
+		if strings.HasPrefix(line, "Peak GFLOPS:") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				if peakGflops, err := strconv.ParseFloat(parts[2], 64); err == nil {
+					dgemmResults["peak_gflops"] = peakGflops
+				}
+			}
+		}
+		
+		// Parse efficiency metrics
+		if strings.Contains(line, "Memory-bound efficiency:") {
+			parts := strings.Fields(line)
+			for i, part := range parts {
+				if strings.HasSuffix(part, "%") {
+					effStr := strings.TrimSuffix(part, "%")
+					if eff, err := strconv.ParseFloat(effStr, 64); err == nil {
+						dgemmResults["memory_bound_efficiency"] = eff / 100.0
+					}
+					break
+				}
+			}
+		}
+		
+		if strings.Contains(line, "Cache efficiency:") {
+			parts := strings.Fields(line)
+			for i, part := range parts {
+				if strings.HasSuffix(part, "%") {
+					effStr := strings.TrimSuffix(part, "%")
+					if eff, err := strconv.ParseFloat(effStr, 64); err == nil {
+						dgemmResults["cache_efficiency"] = eff / 100.0
+					}
+					break
+				}
+			}
+		}
+	}
+	
+	// Add all parsed GFLOPS values
+	for key, value := range gflopsValues {
+		dgemmResults[key] = value
+	}
+	
+	// Add metadata
+	dgemmResults["matrix_sizes_tested"] = matrixSizes
+	dgemmResults["unit"] = "GFLOPS"
+	dgemmResults["benchmark_type"] = "enhanced_dgemm"
+	
+	if len(dgemmResults) == 0 {
+		return nil, fmt.Errorf("no DGEMM results found in output")
+	}
+	
+	results["dgemm"] = dgemmResults
+	return results, nil
+}
+
 func (o *Orchestrator) parseCoreMarkOutput(output string) (map[string]interface{}, error) {
 	lines := strings.Split(output, "\n")
 	
@@ -1821,14 +1919,134 @@ func (o *Orchestrator) parseCacheOutput(output string) (map[string]interface{}, 
 	return results, nil
 }
 
+func (o *Orchestrator) parse7ZipOutput(output string) (map[string]interface{}, error) {
+	lines := strings.Split(output, "\n")
+	
+	results := map[string]interface{}{
+		"7zip": map[string]interface{}{},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	}
+	
+	sevenZipResults := make(map[string]interface{})
+	
+	// Parse 7-zip benchmark output
+	// Expected format lines: "Tot:     45234 12345     45000 12300"
+	// Format: Tot: [compress MIPS] [decompress MIPS] [compress rating] [decompress rating]
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		if strings.HasPrefix(line, "Tot:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 5 {
+				// Extract MIPS values
+				if compressMIPS, err := strconv.ParseFloat(fields[1], 64); err == nil {
+					sevenZipResults["compression_mips"] = compressMIPS
+				}
+				if decompressMIPS, err := strconv.ParseFloat(fields[2], 64); err == nil {
+					sevenZipResults["decompression_mips"] = decompressMIPS
+				}
+				
+				// Calculate total MIPS
+				if comp, ok := sevenZipResults["compression_mips"].(float64); ok {
+					if decomp, ok := sevenZipResults["decompression_mips"].(float64); ok {
+						sevenZipResults["total_mips"] = (comp + decomp) / 2.0
+						sevenZipResults["unit"] = "MIPS"
+					}
+				}
+			}
+		}
+		
+		// Also look for single-threaded results
+		if strings.Contains(line, "Single-threaded") {
+			sevenZipResults["threading_mode"] = "both"
+		}
+	}
+	
+	if len(sevenZipResults) == 0 {
+		return nil, fmt.Errorf("no 7-zip results found in output")
+	}
+	
+	results["7zip"] = sevenZipResults
+	return results, nil
+}
+
+func (o *Orchestrator) parseSysbenchOutput(output string) (map[string]interface{}, error) {
+	lines := strings.Split(output, "\n")
+	
+	results := map[string]interface{}{
+		"sysbench": map[string]interface{}{},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	}
+	
+	sysbenchResults := make(map[string]interface{})
+	
+	// Parse sysbench CPU output
+	// Expected format: "events per second: 1234.56"
+	// Also: "total time: 10.0012s"
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		if strings.Contains(line, "events per second:") {
+			parts := strings.Split(line, ":")
+			if len(parts) == 2 {
+				epsStr := strings.TrimSpace(parts[1])
+				if eps, err := strconv.ParseFloat(epsStr, 64); err == nil {
+					sysbenchResults["events_per_second"] = eps
+					sysbenchResults["unit"] = "events/sec"
+				}
+			}
+		}
+		
+		if strings.Contains(line, "total time:") {
+			parts := strings.Split(line, ":")
+			if len(parts) == 2 {
+				timeStr := strings.TrimSpace(parts[1])
+				// Remove 's' suffix
+				timeStr = strings.TrimSuffix(timeStr, "s")
+				if totalTime, err := strconv.ParseFloat(timeStr, 64); err == nil {
+					sysbenchResults["total_time"] = totalTime
+					sysbenchResults["time_unit"] = "seconds"
+				}
+			}
+		}
+		
+		if strings.Contains(line, "total number of events:") {
+			parts := strings.Split(line, ":")
+			if len(parts) == 2 {
+				eventsStr := strings.TrimSpace(parts[1])
+				if events, err := strconv.Atoi(eventsStr); err == nil {
+					sysbenchResults["total_events"] = events
+				}
+			}
+		}
+	}
+	
+	if len(sysbenchResults) == 0 {
+		return nil, fmt.Errorf("no sysbench results found in output")
+	}
+	
+	results["sysbench"] = sysbenchResults
+	return results, nil
+}
+
 func (o *Orchestrator) aggregateBenchmarkResults(benchmarkSuite string, allResults []map[string]interface{}) (map[string]interface{}, error) {
 	switch benchmarkSuite {
 	case "stream":
 		return o.aggregateSTREAMResults(allResults)
 	case "hpl":
 		return o.aggregateHPLResults(allResults)
+	case "dgemm":
+		return o.aggregateDGEMMResults(allResults)
 	case "coremark":
 		return o.aggregateCoreMarkResults(allResults)
+	case "7zip":
+		return o.aggregate7ZipResults(allResults)
+	case "sysbench":
+		return o.aggregateSysbenchResults(allResults)
 	case "cache":
 		return o.aggregateCacheResults(allResults)
 	default:
@@ -1917,6 +2135,68 @@ func (o *Orchestrator) aggregateHPLResults(allResults []map[string]interface{}) 
 			"timestamp": time.Now().Format(time.RFC3339),
 			"iterations": len(allResults),
 			"statistical_confidence": "95%",
+		},
+	}, nil
+}
+
+func (o *Orchestrator) aggregateDGEMMResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	var smallGflopsValues, mediumGflopsValues, largeGflopsValues, peakGflopsValues []float64
+	var memoryEffValues, cacheEffValues []float64
+	
+	// Extract values from all iterations
+	for _, result := range allResults {
+		if dgemmData, ok := result["dgemm"].(map[string]interface{}); ok {
+			if smallGflops, ok := dgemmData["small_matrix_gflops"].(float64); ok {
+				smallGflopsValues = append(smallGflopsValues, smallGflops)
+			}
+			if mediumGflops, ok := dgemmData["medium_matrix_gflops"].(float64); ok {
+				mediumGflopsValues = append(mediumGflopsValues, mediumGflops)
+			}
+			if largeGflops, ok := dgemmData["large_matrix_gflops"].(float64); ok {
+				largeGflopsValues = append(largeGflopsValues, largeGflops)
+			}
+			if peakGflops, ok := dgemmData["peak_gflops"].(float64); ok {
+				peakGflopsValues = append(peakGflopsValues, peakGflops)
+			}
+			if memEff, ok := dgemmData["memory_bound_efficiency"].(float64); ok {
+				memoryEffValues = append(memoryEffValues, memEff)
+			}
+			if cacheEff, ok := dgemmData["cache_efficiency"].(float64); ok {
+				cacheEffValues = append(cacheEffValues, cacheEff)
+			}
+		}
+	}
+	
+	// Calculate statistics for each metric
+	smallStats := o.calculateStatistics(smallGflopsValues)
+	mediumStats := o.calculateStatistics(mediumGflopsValues)
+	largeStats := o.calculateStatistics(largeGflopsValues)
+	peakStats := o.calculateStatistics(peakGflopsValues)
+	memoryEffStats := o.calculateStatistics(memoryEffValues)
+	cacheEffStats := o.calculateStatistics(cacheEffValues)
+	
+	return map[string]interface{}{
+		"dgemm": map[string]interface{}{
+			"small_matrix_gflops": smallStats.Mean,
+			"small_matrix_std_dev": smallStats.StdDev,
+			"medium_matrix_gflops": mediumStats.Mean,
+			"medium_matrix_std_dev": mediumStats.StdDev,
+			"large_matrix_gflops": largeStats.Mean,
+			"large_matrix_std_dev": largeStats.StdDev,
+			"peak_gflops": peakStats.Mean,
+			"peak_std_dev": peakStats.StdDev,
+			"memory_bound_efficiency": memoryEffStats.Mean,
+			"memory_eff_std_dev": memoryEffStats.StdDev,
+			"cache_efficiency": cacheEffStats.Mean,
+			"cache_eff_std_dev": cacheEffStats.StdDev,
+			"unit": "GFLOPS",
+			"benchmark_type": "enhanced_dgemm",
+		},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+			"iterations": len(allResults),
+			"statistical_confidence": "95%",
+			"matrix_sizes": []string{"small", "medium", "large"},
 		},
 	}, nil
 }
@@ -2021,6 +2301,85 @@ func (o *Orchestrator) aggregateCacheResults(allResults []map[string]interface{}
 			"timestamp": time.Now().Format(time.RFC3339),
 			"iterations": len(allResults),
 			"statistical_confidence": "95%",
+		},
+	}, nil
+}
+
+func (o *Orchestrator) aggregate7ZipResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	var compressMIPSValues, decompressMIPSValues, totalMIPSValues []float64
+	
+	// Extract values from all iterations
+	for _, result := range allResults {
+		if sevenZipData, ok := result["7zip"].(map[string]interface{}); ok {
+			if compMIPS, ok := sevenZipData["compression_mips"].(float64); ok {
+				compressMIPSValues = append(compressMIPSValues, compMIPS)
+			}
+			if decompMIPS, ok := sevenZipData["decompression_mips"].(float64); ok {
+				decompressMIPSValues = append(decompressMIPSValues, decompMIPS)
+			}
+			if totalMIPS, ok := sevenZipData["total_mips"].(float64); ok {
+				totalMIPSValues = append(totalMIPSValues, totalMIPS)
+			}
+		}
+	}
+	
+	// Calculate statistics for each metric
+	compressStats := o.calculateStatistics(compressMIPSValues)
+	decompressStats := o.calculateStatistics(decompressMIPSValues)
+	totalStats := o.calculateStatistics(totalMIPSValues)
+	
+	return map[string]interface{}{
+		"7zip": map[string]interface{}{
+			"compression_mips": compressStats.Mean,
+			"compression_std_dev": compressStats.StdDev,
+			"decompression_mips": decompressStats.Mean,
+			"decompression_std_dev": decompressStats.StdDev,
+			"total_mips": totalStats.Mean,
+			"total_std_dev": totalStats.StdDev,
+			"unit": "MIPS",
+		},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+			"iterations": len(allResults),
+			"statistical_confidence": "95%",
+			"benchmark_type": "compression_workload",
+		},
+	}, nil
+}
+
+func (o *Orchestrator) aggregateSysbenchResults(allResults []map[string]interface{}) (map[string]interface{}, error) {
+	var epsValues, timeValues []float64
+	
+	// Extract values from all iterations
+	for _, result := range allResults {
+		if sysbenchData, ok := result["sysbench"].(map[string]interface{}); ok {
+			if eps, ok := sysbenchData["events_per_second"].(float64); ok {
+				epsValues = append(epsValues, eps)
+			}
+			if time, ok := sysbenchData["total_time"].(float64); ok {
+				timeValues = append(timeValues, time)
+			}
+		}
+	}
+	
+	// Calculate statistics for each metric
+	epsStats := o.calculateStatistics(epsValues)
+	timeStats := o.calculateStatistics(timeValues)
+	
+	return map[string]interface{}{
+		"sysbench": map[string]interface{}{
+			"events_per_second": epsStats.Mean,
+			"eps_std_dev": epsStats.StdDev,
+			"total_time": timeStats.Mean,
+			"time_std_dev": timeStats.StdDev,
+			"unit": "events/sec",
+			"time_unit": "seconds",
+		},
+		"metadata": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+			"iterations": len(allResults),
+			"statistical_confidence": "95%",
+			"benchmark_type": "prime_calculation",
 		},
 	}, nil
 }
