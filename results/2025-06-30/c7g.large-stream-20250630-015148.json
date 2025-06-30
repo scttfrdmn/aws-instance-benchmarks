@@ -1,0 +1,73 @@
+{
+  "execution_context": {
+    "benchmark_version": "latest",
+    "compiler_optimizations": "-O3 -march=native -mtune=native -mcpu=neoverse-v1",
+    "container_runtime": "docker"
+  },
+  "metadata": {
+    "benchmark_suite": "stream",
+    "collection_method": "automated",
+    "data_version": "1.0",
+    "duration_seconds": 369.412956708,
+    "environment": {
+      "containerImage": "public.ecr.aws/aws-benchmarks/stream:amd-zen4",
+      "duration": 369.412956708,
+      "timestamp": "2025-06-30T01:51:48Z"
+    },
+    "instanceFamily": "c7g",
+    "instanceType": "c7g.large",
+    "instance_id": "i-0f8c985187f7835e6",
+    "processorArchitecture": "graviton",
+    "region": "us-west-2",
+    "timestamp": "2025-06-30T01:51:48Z"
+  },
+  "performance": {
+    "memory": {
+      "metadata": {
+        "iterations": 4,
+        "statistical_confidence": "95%",
+        "timestamp": "2025-06-29T18:57:57-07:00"
+      },
+      "stream": {
+        "add": {
+          "bandwidth": 46.656800000000004,
+          "std_dev": 0.21537712274055548,
+          "unit": "GB/s"
+        },
+        "copy": {
+          "bandwidth": 48.693775,
+          "std_dev": 0.4130733795283827,
+          "unit": "GB/s"
+        },
+        "scale": {
+          "bandwidth": 47.7743,
+          "std_dev": 0.6695830232316223,
+          "unit": "GB/s"
+        },
+        "triad": {
+          "bandwidth": 45.95445,
+          "std_dev": 0.7224696135478629,
+          "unit": "GB/s"
+        }
+      }
+    }
+  },
+  "schema_version": "1.0.0",
+  "system_info": {
+    "architecture": "graviton",
+    "instance_family": "c7g",
+    "private_ip": "172.31.0.51",
+    "public_ip": "",
+    "status": "completed"
+  },
+  "validation": {
+    "checksums": {
+      "md5": "d41d8cd98f00b204e9800998ecf8427e",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reproducibility": {
+      "confidence": 1,
+      "runs": 1
+    }
+  }
+}

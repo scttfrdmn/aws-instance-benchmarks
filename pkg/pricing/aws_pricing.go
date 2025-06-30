@@ -145,6 +145,108 @@ func (p *PricingService) getHardcodedPricing(instanceType, region string) (float
 		"r7g.8xlarge":  2.1504,
 		"r7g.12xlarge": 3.2256,
 		"r7g.16xlarge": 4.3008,
+
+		// C6g instances (Graviton2 - Compute optimized)
+		"c6g.medium":   0.034,
+		"c6g.large":    0.068,
+		"c6g.xlarge":   0.136,
+		"c6g.2xlarge":  0.272,
+		"c6g.4xlarge":  0.544,
+
+		// C6i instances (Intel Ice Lake - Compute optimized)
+		"c6i.large":    0.085,
+		"c6i.xlarge":   0.17,
+		"c6i.2xlarge":  0.34,
+		"c6i.4xlarge":  0.68,
+
+		// C6a instances (AMD EPYC - Compute optimized)
+		"c6a.large":    0.0765,
+		"c6a.xlarge":   0.153,
+		"c6a.2xlarge":  0.306,
+		"c6a.4xlarge":  0.612,
+
+		// M6g instances (Graviton2 - General purpose)
+		"m6g.medium":   0.0385,
+		"m6g.large":    0.077,
+		"m6g.xlarge":   0.154,
+		"m6g.2xlarge":  0.308,
+		"m6g.4xlarge":  0.616,
+
+		// M6i instances (Intel Ice Lake - General purpose)
+		"m6i.large":    0.096,
+		"m6i.xlarge":   0.192,
+		"m6i.2xlarge":  0.384,
+		"m6i.4xlarge":  0.768,
+
+		// M6a instances (AMD EPYC - General purpose)
+		"m6a.large":    0.086,
+		"m6a.xlarge":   0.173,
+		"m6a.2xlarge":  0.346,
+		"m6a.4xlarge":  0.691,
+
+		// C5 instances (Intel Xeon - Previous generation)
+		"c5.large":     0.085,
+		"c5.xlarge":    0.17,
+		"c5.2xlarge":   0.34,
+		"c5.4xlarge":   0.68,
+
+		// C5n instances (Intel Xeon with enhanced networking)
+		"c5n.large":    0.108,
+		"c5n.xlarge":   0.216,
+		"c5n.2xlarge":  0.432,
+
+		// M5 instances (Intel Xeon - Previous generation)
+		"m5.large":     0.096,
+		"m5.xlarge":    0.192,
+		"m5.2xlarge":   0.384,
+		"m5.4xlarge":   0.768,
+
+		// M5a instances (AMD EPYC - Previous generation)
+		"m5a.large":    0.086,
+		"m5a.xlarge":   0.172,
+		"m5a.2xlarge":  0.344,
+		"m5a.4xlarge":  0.688,
+
+		// M5n instances (Intel Xeon with enhanced networking)
+		"m5n.large":    0.119,
+		"m5n.xlarge":   0.238,
+		"m5n.2xlarge":  0.476,
+
+		// R6g instances (Graviton2 - Memory optimized)
+		"r6g.medium":   0.0504,
+		"r6g.large":    0.1008,
+		"r6g.xlarge":   0.2016,
+		"r6g.2xlarge":  0.4032,
+		"r6g.4xlarge":  0.8064,
+
+		// R6i instances (Intel Ice Lake - Memory optimized)
+		"r6i.large":    0.1512,
+		"r6i.xlarge":   0.3024,
+		"r6i.2xlarge":  0.6048,
+		"r6i.4xlarge":  1.2096,
+
+		// R6a instances (AMD EPYC - Memory optimized)
+		"r6a.large":    0.1361,
+		"r6a.xlarge":   0.2722,
+		"r6a.2xlarge":  0.5444,
+		"r6a.4xlarge":  1.0888,
+
+		// R5 instances (Intel Xeon - Memory optimized previous gen)
+		"r5.large":     0.126,
+		"r5.xlarge":    0.252,
+		"r5.2xlarge":   0.504,
+		"r5.4xlarge":   1.008,
+
+		// R5a instances (AMD EPYC - Memory optimized previous gen)
+		"r5a.large":    0.113,
+		"r5a.xlarge":   0.226,
+		"r5a.2xlarge":  0.452,
+		"r5a.4xlarge":  0.904,
+
+		// R5n instances (Intel Xeon with enhanced networking - Memory optimized)
+		"r5n.large":    0.149,
+		"r5n.xlarge":   0.298,
+		"r5n.2xlarge":  0.596,
 	}
 
 	basePrice, exists := basePricing[instanceType]
