@@ -441,17 +441,12 @@ func runDiscoverInfrastructure(cmd *cobra.Command, args []string) error {
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "cloud-benchmark-collector",
-		Short: "Multi-cloud instance benchmark collection tool",
-		Long:  `Comprehensive performance benchmark collection for cloud instances across providers.
+		Short: "AWS instance benchmark collection tool",
+		Long:  `Comprehensive performance benchmark collection for AWS EC2 instances.
 
-Supported cloud providers:
-- AWS EC2 (production ready)
-- Google Cloud Compute Engine (planned)
-- Microsoft Azure Virtual Machines (planned)
-- Oracle Cloud Infrastructure (planned)
-
-The tool provides consistent benchmarking methodology across providers while
-capturing provider-specific optimizations and system characteristics.`,
+The tool provides consistent benchmarking methodology for AWS EC2 instances while
+capturing processor-specific optimizations and system characteristics across
+Intel, AMD, and AWS Graviton architectures.`,
 	}
 
 	var discoverCmd = &cobra.Command{

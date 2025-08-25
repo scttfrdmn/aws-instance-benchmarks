@@ -1,17 +1,14 @@
-# Multi-Cloud Instance Benchmarks
+# AWS Instance Benchmarks
 
-An open database of comprehensive performance benchmarks for cloud instances across providers, designed to enable data-driven instance selection for research computing workloads.
+An open database of comprehensive performance benchmarks for AWS EC2 instances, designed to enable data-driven instance selection for research computing workloads.
 
 ## 🌐 Supported Cloud Providers
 
-- **AWS EC2** (Production Ready) - Complete benchmark coverage across 27+ instance families
-- **Google Cloud Compute Engine** (Planned) - Architecture designed and ready for implementation  
-- **Microsoft Azure Virtual Machines** (Planned) - Provider interface implemented
-- **Oracle Cloud Infrastructure** (Planned) - Multi-cloud framework supports extension
+- **AWS EC2** (Production Ready) - Complete benchmark coverage across 35+ instance families
 
 ## 🎯 Mission
 
-Provide the research computing community with deep, microarchitectural performance data for cloud instances that goes beyond published specifications. Enable tools like [ComputeCompass](https://github.com/scttfrdmn/computecompass) to make intelligent, performance-aware recommendations across cloud providers.
+Provide the research computing community with deep, microarchitectural performance data for AWS EC2 instances that goes beyond published specifications. Enable tools like [ComputeCompass](https://github.com/scttfrdmn/computecompass) to make intelligent, performance-aware recommendations for AWS workloads.
 
 ## 📊 What's Included
 
