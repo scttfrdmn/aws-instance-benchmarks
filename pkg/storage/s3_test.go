@@ -29,7 +29,7 @@ func TestNewS3Storage(t *testing.T) {
 	ctx := context.Background()
 	
 	// This will likely fail without proper AWS setup, but tests the interface
-	_, err := NewS3Storage(ctx, config)
+	_, err := NewS3Storage(ctx, config, "us-east-1")
 	
 	// In CI/CD without AWS credentials, we expect an error
 	if err == nil {
@@ -48,7 +48,7 @@ func TestStorageConfigDefaults(t *testing.T) {
 	ctx := context.Background()
 	
 	// Create storage to test default application (will fail on AWS call)
-	_, err := NewS3Storage(ctx, config)
+	_, err := NewS3Storage(ctx, config, "us-east-1")
 	
 	// We expect an error due to missing AWS credentials, but that's fine
 	// The important part is that defaults would be applied internally
