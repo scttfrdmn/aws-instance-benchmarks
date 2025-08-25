@@ -15,7 +15,7 @@ func TestNewS3Storage(t *testing.T) {
 	}
 	
 	config := Config{
-		BucketName:         "test-bucket",
+		BucketName:         "aws-instance-benchmarks-us-west-2-1751232301",
 		KeyPrefix:          "test-prefix/",
 		EnableCompression:  true,
 		EnableVersioning:   true,
@@ -29,31 +29,32 @@ func TestNewS3Storage(t *testing.T) {
 	ctx := context.Background()
 	
 	// This will likely fail without proper AWS setup, but tests the interface
-	_, err := NewS3Storage(ctx, config)
+	_, err := NewS3Storage(ctx, config, "us-west-2")
 	
-	// In CI/CD without AWS credentials, we expect an error
+	// With proper AWS credentials and bucket, should succeed
 	if err == nil {
 		t.Log("S3Storage created successfully (AWS credentials available)")
 	} else {
-		t.Logf("Expected AWS credential error in test environment: %v", err)
+		t.Errorf("Failed to create S3Storage: %v", err)
 	}
 }
 
 func TestStorageConfigDefaults(t *testing.T) {
 	config := Config{
-		BucketName: "test-bucket",
+		BucketName: "aws-instance-benchmarks-us-west-2-1751232301",
 	}
 	
 	// Test that NewS3Storage applies defaults
 	ctx := context.Background()
 	
 	// Create storage to test default application (will fail on AWS call)
-	_, err := NewS3Storage(ctx, config)
+	_, err := NewS3Storage(ctx, config, "us-west-2")
 	
-	// We expect an error due to missing AWS credentials, but that's fine
-	// The important part is that defaults would be applied internally
+	// With proper AWS credentials, should succeed
 	if err != nil {
-		t.Logf("Expected error due to AWS setup: %v", err)
+		t.Errorf("Failed to create S3Storage: %v", err)
+	} else {
+		t.Log("S3Storage created successfully with defaults applied")
 	}
 }
 
@@ -133,15 +134,16 @@ func TestStoreResult(t *testing.T) {
 	}
 	
 	config := Config{
-		BucketName:    "test-bucket",
+		BucketName:    "aws-instance-benchmarks-us-west-2-1751232301",
 		KeyPrefix:     "test/",
 		UploadTimeout: 30 * time.Second,
 		StorageClass:  "STANDARD",
 	}
 	
-	storage := &S3Storage{
-		config: config,
-		// Note: client would be nil, causing the test to fail on AWS call
+	ctx := context.Background()
+	storage, err := NewS3Storage(ctx, config, "us-west-2")
+	if err != nil {
+		t.Skipf("Could not create S3 storage: %v", err)
 	}
 	
 	// Mock result
@@ -157,16 +159,14 @@ func TestStoreResult(t *testing.T) {
 		},
 	}
 	
-	ctx := context.Background()
+	// This will test actual S3 storage with real AWS credentials
+	err = storage.StoreResult(ctx, result)
 	
-	// This will fail due to nil client, but tests the interface
-	err := storage.StoreResult(ctx, result)
-	
-	// Expect error due to nil client or missing AWS credentials
-	if err == nil {
-		t.Error("Expected error due to test environment, but got none")
+	// Should succeed with proper AWS credentials and bucket
+	if err != nil {
+		t.Errorf("Failed to store result: %v", err)
 	} else {
-		t.Logf("Expected error in test environment: %v", err)
+		t.Logf("Successfully stored test result to S3")
 	}
 }
 
