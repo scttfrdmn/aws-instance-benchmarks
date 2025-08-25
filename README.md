@@ -271,21 +271,25 @@ The project uses JSON configuration files to eliminate trial-and-error with AWS 
 
 ## 📈 Comprehensive Testing Coverage
 
-### Instance Type Coverage (27+ types tested)
-- **Compute Optimized**: c5.large, c5a.large, c6a.large, c6g.large, c6i.large, c7a.large, c7g.large, c7i.large  
-- **General Purpose**: m5.large, m5a.large, m6a.large, m6g.large, m6i.large, m7a.large, m7g.large, m7i.large
-- **Memory Optimized**: r5.large, r5a.large, r6a.large, r6g.large, r6i.large, r7a.large, r7g.large, r7i.large
-- **Storage Optimized**: i4i.large
-- **Burstable**: t3.large, t3a.large
+### Instance Type Coverage (35+ types tested)
+- **Compute Optimized**: c4, c5, c5a, c6a, c6g, c6i, c7a, c7g, c7i, c8g (latest)
+- **General Purpose**: m4, m5, m5a, m6a, m6g, m6i, m7a, m7g, m7i, m8g (latest)
+- **Memory Optimized**: r4, r5, r5a, r6a, r6g, r6i, r7a, r7g, r7i, r8g (latest)
+- **Storage Optimized**: i3, i4i, i4g, z1d
+- **Burstable**: t3, t3a, t4g
 
 ### Architecture Coverage
-- **Intel (x86_64)**: c5, c6i, c7i, m5, m6i, m7i, r5, r6i, r7i, i4i, t3
-- **AMD (x86_64)**: c5a, c6a, c7a, m5a, m6a, m7a, r5a, r6a, r7a, t3a  
-- **AWS Graviton (ARM64)**: c6g, c7g, m6g, m7g, r6g, r7g
+- **Intel (x86_64)**: Ice Lake (c7i, m7i, r7i), Skylake (c5, c6i, m5, m6i, r5, r6i, i4i, t3), Broadwell (c4, m4, r4)
+- **AMD (x86_64)**: Zen 4 (c7a, m7a, r7a), Zen 3 (c5a, c6a, m5a, m6a, r5a, r6a, t3a)
+- **AWS Graviton (ARM64)**: 
+  - Graviton4 (c8g, m8g, r8g) - Latest generation with enhanced performance
+  - Graviton3 (c7g, m7g, r7g) - Production optimized
+  - Graviton2 (c6g, m6g, r6g, t4g) - First-generation ARM
 
 ### Benchmark Types
 - **STREAM**: Memory bandwidth testing across all architectures
 - **HPL (LINPACK)**: CPU floating-point performance
+- **CoreMark**: Integer performance and efficiency metrics
 - **Microarchitecture Benchmarks**: Architecture-specific performance analysis
   - Intel: AVX-512, MKL optimization, cache hierarchy
   - AMD: Zen4 features, BLIS optimization, vectorization
@@ -296,6 +300,21 @@ The project uses JSON configuration files to eliminate trial-and-error with AWS 
   - Cache hierarchy (L1/L2/L3 sizes, associativity, latencies)
   - NUMA topology and memory controller details
   - Virtualization environment and optimization features
+
+### Architecture-Specific Optimizations (Enhanced 2025)
+- **Graviton4 (Latest)**: ARM Neoverse-V2 with SVE support
+  - Compiler: `-O3 -march=armv9-a+sve -mcpu=neoverse-v2 -flto`
+  - Container: `graviton4` tag with specialized toolchain
+  - Performance: Up to 30% improvement over Graviton3
+- **Intel Ice Lake**: 10nm process with AVX-512 support
+  - Compiler: `-O3 -march=icelake-server -mtune=icelake-server`
+  - Container: `intel-icelake` tag with MKL optimization
+- **AMD Zen 4**: Enhanced instruction throughput and cache
+  - Compiler: `-O3 -march=znver4 -mtune=znver4`
+  - Container: `amd-zen4` tag with BLIS optimization
+- **Historical Baseline**: Older generations for performance comparison
+  - Broadwell (c4, m4, r4): `-march=broadwell`
+  - Skylake (c5, m5, r5): `-march=skylake-avx512`
 
 ## ⚙️ AWS Configuration Requirements
 
