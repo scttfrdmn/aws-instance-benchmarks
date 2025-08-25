@@ -1,0 +1,51 @@
+packages:
+  all:
+    compiler: [gcc@11]
+    target: [neoverse_v2]
+    providers:
+      blas: [openblas]
+      lapack: [openblas]
+      mpi: [openmpi]
+    variants: +openmp
+    
+  gcc:
+    version: [11]
+    target: [neoverse_v2]
+    
+  stream:
+    variants: ~openmp
+    target: [neoverse_v2]
+    
+  openblas:
+    variants: +openmp threads=openmp target=neoverse_v2
+    
+compilers:
+- compiler:
+    spec: gcc@11
+    paths:
+      cc: /usr/bin/gcc-11
+      cxx: /usr/bin/g++-11
+      f77: /usr/bin/gfortran-11
+      fc: /usr/bin/gfortran-11
+    flags:
+      cflags: "-O3 -march=armv9-a+sve -mcpu=neoverse-v2 -mtune=neoverse-v2 -flto -ffast-math"
+      cxxflags: "-O3 -march=armv9-a+sve -mcpu=neoverse-v2 -mtune=neoverse-v2 -flto -ffast-math"
+      fflags: "-O3 -march=armv9-a+sve -mcpu=neoverse-v2 -mtune=neoverse-v2"
+      ldflags: "-flto"
+    operating_system: ubuntu22
+    target: neoverse_v2
+    modules: []
+    environment: {}
+    extra_rpaths: []
+
+targets:
+  neoverse_v2:
+    optimization_flags:
+      gcc@11: "-O3 -march=armv9-a+sve -mcpu=neoverse-v2 -mtune=neoverse-v2 -flto"
+
+# Architecture-specific optimizations for AWS Graviton4
+config:
+  build_stage: "/tmp/spack-stage"
+  source_cache: "/tmp/spack-cache"
+  misc_cache: "/tmp/spack-misc-cache"
+  build_jobs: 4

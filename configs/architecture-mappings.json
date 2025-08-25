@@ -170,14 +170,14 @@
   "c8g": {
     "instanceFamily": "c8g",
     "architecture": "arm64",
-    "containerTag": "graviton2",
-    "processorInfo": "AWS"
+    "containerTag": "graviton4",
+    "processorInfo": "AWS Graviton4"
   },
   "c8gd": {
     "instanceFamily": "c8gd",
     "architecture": "arm64",
-    "containerTag": "arm64-unknown",
-    "processorInfo": "AWS"
+    "containerTag": "graviton4",
+    "processorInfo": "AWS Graviton4"
   },
   "d2": {
     "instanceFamily": "d2",
@@ -518,14 +518,14 @@
   "m8g": {
     "instanceFamily": "m8g",
     "architecture": "arm64",
-    "containerTag": "graviton2",
-    "processorInfo": "AWS"
+    "containerTag": "graviton4",
+    "processorInfo": "AWS Graviton4"
   },
   "m8gd": {
     "instanceFamily": "m8gd",
     "architecture": "arm64",
-    "containerTag": "arm64-unknown",
-    "processorInfo": "AWS"
+    "containerTag": "graviton4",
+    "processorInfo": "AWS Graviton4"
   },
   "mac1": {
     "instanceFamily": "mac1",
@@ -734,14 +734,14 @@
   "r8g": {
     "instanceFamily": "r8g",
     "architecture": "arm64",
-    "containerTag": "graviton2",
-    "processorInfo": "AWS"
+    "containerTag": "graviton4",
+    "processorInfo": "AWS Graviton4"
   },
   "r8gd": {
     "instanceFamily": "r8gd",
     "architecture": "arm64",
-    "containerTag": "arm64-unknown",
-    "processorInfo": "AWS"
+    "containerTag": "graviton4",
+    "processorInfo": "AWS Graviton4"
   },
   "t1": {
     "instanceFamily": "t1",
