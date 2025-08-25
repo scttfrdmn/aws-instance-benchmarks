@@ -1,0 +1,126 @@
+name: Enhanced Research Computing Benchmarks
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"  # Weekly full benchmarks
+    - cron: "0 6 * * *"  # Daily spot price tracking
+  workflow_dispatch:
+    inputs:
+      benchmark_suite:
+        description: 'Benchmark suite to run'
+        required: true
+        type: choice
+        options:
+          - all
+          - genomics
+          - ml
+          - climate
+          - hep
+          - chemistry
+          - cfd
+          - astronomy
+          - social_sciences
+          - digital_humanities
+          - environmental
+          - engineering
+          - medical
+          - hardware_characterization
+
+env:
+  BENCHMARK_REGIONS: '["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]'
+  INSTANCE_FAMILIES: '["m7i", "c7i", "r7i", "p4d", "g5", "hpc7g", "x2gd", "z1d"]'
+
+jobs:
+  benchmark-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: ["us-east-1", "us-west-2", "eu-west-1"]
+        suite: [
+          "genomics", "ml", "climate", "hep", "chemistry", 
+          "cfd", "astronomy", "social_sciences", "digital_humanities", 
+          "environmental", "engineering", "medical"
+        ]
+        
+  research-workload-benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Research Computing Environment
+        run: |
+          # Install domain-specific tools
+          sudo apt-get update
+          sudo apt-get install -y \
+            openmpi-bin \
+            libblas-dev \
+            liblapack-dev \
+            libfftw3-dev \
+            python3-numpy \
+            python3-scipy \
+            r-base \
+            gfortran \
+            cmake
+            
+      - name: Setup Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Python Dependencies
+        run: |
+          pip install -r requirements-benchmarks.txt
+          
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ matrix.region }}
+          
+      - name: Launch Benchmark Instance
+        run: |
+          ./scripts/launch_benchmark_instance.sh ${{ matrix.suite }} ${{ matrix.region }}
+          
+      - name: Run Domain-Specific Benchmarks
+        run: |
+          ./scripts/run_research_benchmarks.sh ${{ matrix.suite }}
+          
+      - name: Collect Results
+        run: |
+          ./scripts/collect_benchmark_results.sh ${{ matrix.suite }} ${{ matrix.region }}
+          
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ matrix.suite }}-${{ matrix.region }}
+          path: results/
+          
+  process-results:
+    needs: research-workload-benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Results
+        uses: actions/download-artifact@v4
+        
+      - name: Statistical Analysis
+        run: |
+          python scripts/statistical_analysis.py
+          python scripts/performance_prediction.py
+          
+      - name: Generate Reports
+        run: |
+          python scripts/generate_reports.py
+          
+      - name: Update Data Files
+        run: |
+          python scripts/update_data_files.py
+          
+      - name: Commit Results
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/
+          git commit -m "Update benchmark data - $(date)"
+          git push

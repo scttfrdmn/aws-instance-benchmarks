@@ -1,0 +1,253 @@
+# Docker Compose for AWS Instance Benchmarks
+# Provides orchestrated, reproducible benchmark execution across research domains
+
+version: '3.8'
+
+services:
+  # Genomics/Bioinformatics benchmarks
+  genomics:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.genomics
+    image: aws-instance-benchmarks:genomics-2.0
+    container_name: genomics-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=genomics
+      - RESULTS_DIR=/results/genomics
+      - OMP_NUM_THREADS=1
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - genomics
+      - all
+
+  # Machine Learning benchmarks
+  machine-learning:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.ml
+    image: aws-instance-benchmarks:ml-2.0
+    container_name: ml-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=ml
+      - RESULTS_DIR=/results/ml
+      - CUDA_VISIBLE_DEVICES=0
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - ml
+      - all
+
+  # Climate/Weather modeling benchmarks
+  climate:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.climate
+    image: aws-instance-benchmarks:climate-2.0
+    container_name: climate-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=climate
+      - RESULTS_DIR=/results/climate
+      - OMPI_ALLOW_RUN_AS_ROOT=1
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - climate
+      - all
+
+  # High Energy Physics benchmarks
+  hep:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.hep
+    image: aws-instance-benchmarks:hep-2.0
+    container_name: hep-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=hep
+      - RESULTS_DIR=/results/hep
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - hep
+      - all
+
+  # Computational Chemistry benchmarks
+  chemistry:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.chemistry
+    image: aws-instance-benchmarks:chemistry-2.0
+    container_name: chemistry-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=chemistry
+      - RESULTS_DIR=/results/chemistry
+      - OMP_NUM_THREADS=1
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - chemistry
+      - all
+
+  # CFD benchmarks
+  cfd:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.cfd
+    image: aws-instance-benchmarks:cfd-2.0
+    container_name: cfd-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=cfd
+      - RESULTS_DIR=/results/cfd
+      - OMPI_ALLOW_RUN_AS_ROOT=1
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - cfd
+      - all
+
+  # Astronomy benchmarks
+  astronomy:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.astronomy
+    image: aws-instance-benchmarks:astronomy-2.0
+    container_name: astronomy-benchmarks
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - BENCHMARK_SUITE=astronomy
+      - RESULTS_DIR=/results/astronomy
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - astronomy
+      - all
+
+  # Results aggregator and uploader
+  results-processor:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.processor
+    image: aws-instance-benchmarks:processor-2.0
+    container_name: results-processor
+    volumes:
+      - benchmark-results:/results
+      - benchmark-data:/data
+    environment:
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - S3_BUCKET=${S3_BENCHMARK_BUCKET}
+      - RESULTS_DIR=/results
+    depends_on:
+      - genomics
+      - machine-learning
+      - climate
+      - chemistry
+    networks:
+      - benchmark-net
+    profiles:
+      - processor
+      - all
+
+  # System monitoring
+  monitoring:
+    image: prom/node-exporter:latest
+    container_name: benchmark-monitoring
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - benchmark-net
+    profiles:
+      - monitoring
+      - all
+
+  # Benchmark orchestrator
+  orchestrator:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.orchestrator
+    image: aws-instance-benchmarks:orchestrator-2.0
+    container_name: benchmark-orchestrator
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - benchmark-results:/results
+      - benchmark-data:/data
+    environment:
+      - DOCKER_COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-aws-benchmarks}
+      - BENCHMARK_SCHEDULE=${BENCHMARK_SCHEDULE:-all}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    networks:
+      - benchmark-net
+    profiles:
+      - orchestrator
+      - all
+
+volumes:
+  benchmark-results:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BENCHMARK_RESULTS_DIR:-./results}
+  
+  benchmark-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BENCHMARK_DATA_DIR:-./data}
+
+networks:
+  benchmark-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
