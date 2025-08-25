@@ -53,17 +53,56 @@
   },
   "benchmark_defaults": {
     "max_concurrency": 5,
-    "iterations": 1,
-    "timeout_minutes": 30,
+    "iterations": 3,
+    "timeout_minutes": 45,
     "enable_system_profiling": true,
     "skip_quota_check": false,
     "benchmarks": [
-      "stream"
+      "stream",
+      "hpl",
+      "coremark"
     ],
     "instance_types": [
-      "m7i.large",
-      "c7g.large",
-      "r7a.large"
+      "m7i.large", "c7g.large", "r7a.large",
+      "c8g.large", "m8g.large", "r8g.large",
+      "c7i.large", "c7a.large", "c7g.large",
+      "m7i.large", "m7a.large", "m7g.large",
+      "r7i.large", "r7a.large", "r7g.large",
+      "c6i.large", "c6a.large", "c6g.large",
+      "m6i.large", "m6a.large", "m6g.large",
+      "r6i.large", "r6a.large", "r6g.large",
+      "c5.large", "c5a.large", "m5.large", "m5a.large", "r5.large", "r5a.large",
+      "c4.large", "m4.large", "r4.large",
+      "i4i.large", "i4g.large", "z1d.large",
+      "t3.large", "t3a.large", "t4g.large"
     ]
+  },
+  "instance_families": {
+    "compute_optimized": {
+      "current_gen": ["c7i", "c7a", "c7g", "c8g"],
+      "previous_gen": ["c6i", "c6a", "c6g", "c5", "c5a", "c4"],
+      "specialized": ["c7gn", "c6gn", "c5n"]
+    },
+    "general_purpose": {
+      "current_gen": ["m7i", "m7a", "m7g", "m8g"],
+      "previous_gen": ["m6i", "m6a", "m6g", "m5", "m5a", "m4"],
+      "burstable": ["t4g", "t3", "t3a"]
+    },
+    "memory_optimized": {
+      "current_gen": ["r7i", "r7a", "r7g", "r8g"],
+      "previous_gen": ["r6i", "r6a", "r6g", "r5", "r5a", "r4"],
+      "high_memory": ["x2gd", "x2idn", "x2iedn", "x1e", "z1d"]
+    },
+    "storage_optimized": {
+      "ssd": ["i4i", "i4g", "i7i", "i3", "i3en"],
+      "hdd": ["d3", "d3en", "h1"],
+      "network": ["im4gn", "is4gen"]
+    },
+    "accelerated_computing": {
+      "gpu": ["p5", "p4d", "g5", "g4dn"],
+      "ml_training": ["trn1", "trn2"],
+      "ml_inference": ["inf2", "inf1"],
+      "video": ["vt1"]
+    }
   }
 }
