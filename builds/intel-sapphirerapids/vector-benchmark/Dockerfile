@@ -1,5 +1,5 @@
 # Intel Sapphire Rapids Vector Instruction benchmark container
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
