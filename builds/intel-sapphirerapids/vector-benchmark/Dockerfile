@@ -4,10 +4,11 @@ FROM ubuntu:24.04
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    gcc \
+    gcc-13 \
     libomp-dev \
     util-linux \
     bc \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up build environment with Intel Sapphire Rapids optimizations
