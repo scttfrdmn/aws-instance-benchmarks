@@ -1,0 +1,371 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/scttfrdmn/aws-instance-benchmarks/main/schemas/v2.0/version-manifest.json",
+  "title": "Benchmark Version Manifest Schema v2.0",
+  "description": "Comprehensive version tracking for benchmarks, compilers, and system components",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "container_info",
+    "benchmark_versions",
+    "compiler_versions",
+    "system_versions"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "enum": ["2.0"],
+      "description": "Version of this manifest schema"
+    },
+    "container_info": {
+      "type": "object",
+      "description": "Container build and runtime information",
+      "required": ["container_version", "build_timestamp", "optimization_profile"],
+      "properties": {
+        "container_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-z]+)?$",
+          "description": "Container version (semver with optional variant suffix)"
+        },
+        "container_variant": {
+          "type": "string",
+          "enum": ["universal", "intel-optimized", "amd-optimized"],
+          "description": "Container optimization variant"
+        },
+        "base_os": {
+          "type": "string",
+          "description": "Base operating system and version"
+        },
+        "build_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the container was built (ISO 8601)"
+        },
+        "optimization_profile": {
+          "type": "string",
+          "description": "Performance optimization profile used"
+        },
+        "git_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{7,40}$",
+          "description": "Git commit hash of the build"
+        }
+      }
+    },
+    "benchmark_versions": {
+      "type": "object",
+      "description": "Versions of all benchmark suites",
+      "required": ["stream", "linpack", "coremark"],
+      "properties": {
+        "stream": {
+          "type": "object",
+          "description": "STREAM memory bandwidth benchmark",
+          "required": ["version", "source_url", "modifications"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "description": "Official STREAM version"
+            },
+            "source_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Original source download URL"
+            },
+            "source_hash": {
+              "type": "string",
+              "description": "SHA256 hash of original source"
+            },
+            "modifications": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "List of modifications made to original source"
+            },
+            "compilation_flags": {
+              "type": "string",
+              "description": "Compiler flags used for this benchmark"
+            },
+            "array_size": {
+              "type": "integer",
+              "description": "STREAM array size used"
+            },
+            "iterations": {
+              "type": "integer",
+              "description": "Number of iterations (NTIMES)"
+            }
+          }
+        },
+        "linpack": {
+          "type": "object",
+          "description": "LINPACK CPU performance benchmark",
+          "required": ["implementation", "version", "source_type"],
+          "properties": {
+            "implementation": {
+              "type": "string",
+              "enum": ["HPL", "custom", "intel_mkl", "amd_aocl"],
+              "description": "LINPACK implementation used"
+            },
+            "version": {
+              "type": "string",
+              "description": "Implementation version"
+            },
+            "source_type": {
+              "type": "string",
+              "enum": ["original", "modified", "custom"],
+              "description": "Whether source was modified"
+            },
+            "source_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Original source URL"
+            },
+            "math_library": {
+              "type": "string",
+              "description": "Mathematical library used (MKL, AOCL, OpenBLAS, etc.)"
+            },
+            "math_library_version": {
+              "type": "string",
+              "description": "Mathematical library version"
+            },
+            "compilation_flags": {
+              "type": "string",
+              "description": "Compiler flags used for this benchmark"
+            }
+          }
+        },
+        "coremark": {
+          "type": "object",
+          "description": "CoreMark integer performance benchmark",
+          "required": ["version", "source_url", "iterations"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "description": "Official CoreMark version"
+            },
+            "source_url": {
+              "type": "string",
+              "format": "uri", 
+              "description": "Original EEMBC source URL"
+            },
+            "source_hash": {
+              "type": "string",
+              "description": "SHA256 hash of original source"
+            },
+            "implementation_type": {
+              "type": "string",
+              "enum": ["full", "simplified", "custom"],
+              "description": "Implementation completeness"
+            },
+            "iterations": {
+              "type": "integer",
+              "description": "Number of iterations executed"
+            },
+            "compilation_flags": {
+              "type": "string",
+              "description": "Compiler flags used for this benchmark"
+            }
+          }
+        }
+      }
+    },
+    "compiler_versions": {
+      "type": "object",
+      "description": "Compiler toolchain versions",
+      "properties": {
+        "primary_compiler": {
+          "type": "object",
+          "description": "Primary C compiler used",
+          "required": ["name", "version"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "enum": ["gcc", "clang", "icc", "aocc"],
+              "description": "Compiler name"
+            },
+            "version": {
+              "type": "string",
+              "description": "Full compiler version string"
+            },
+            "version_command_output": {
+              "type": "string",
+              "description": "Raw output from compiler --version command"
+            },
+            "installation_path": {
+              "type": "string",
+              "description": "Compiler installation path"
+            },
+            "optimization_flags": {
+              "type": "string",
+              "description": "Default optimization flags used"
+            }
+          }
+        },
+        "cxx_compiler": {
+          "type": "object",
+          "description": "C++ compiler information",
+          "properties": {
+            "name": {"type": "string"},
+            "version": {"type": "string"},
+            "version_command_output": {"type": "string"}
+          }
+        },
+        "fortran_compiler": {
+          "type": "object",
+          "description": "Fortran compiler information",
+          "properties": {
+            "name": {"type": "string"},
+            "version": {"type": "string"},
+            "version_command_output": {"type": "string"}
+          }
+        },
+        "math_libraries": {
+          "type": "array",
+          "description": "Mathematical libraries available",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": ["MKL", "AOCL", "OpenBLAS", "ATLAS", "BLIS", "LAPACK"]
+              },
+              "version": {"type": "string"},
+              "installation_path": {"type": "string"},
+              "threading_model": {
+                "type": "string",
+                "enum": ["sequential", "threaded", "openmp", "tbb"]
+              }
+            }
+          }
+        },
+        "openmp_version": {
+          "type": "string",
+          "description": "OpenMP version supported"
+        }
+      }
+    },
+    "system_versions": {
+      "type": "object",
+      "description": "System-level component versions",
+      "properties": {
+        "os_info": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "version": {"type": "string"},
+            "kernel_version": {"type": "string"},
+            "release_info": {"type": "string"}
+          }
+        },
+        "glibc_version": {
+          "type": "string",
+          "description": "GNU C Library version"
+        },
+        "cmake_version": {
+          "type": "string",
+          "description": "CMake version if used"
+        },
+        "make_version": {
+          "type": "string",
+          "description": "GNU Make version"
+        },
+        "binutils_version": {
+          "type": "string",
+          "description": "GNU Binutils version"
+        }
+      }
+    },
+    "validation_info": {
+      "type": "object",
+      "description": "Information for result validation and reproducibility",
+      "properties": {
+        "checksum_algorithm": {
+          "type": "string",
+          "enum": ["sha256", "md5"],
+          "description": "Algorithm used for checksums"
+        },
+        "source_checksums": {
+          "type": "object",
+          "description": "Checksums of all source files",
+          "properties": {
+            "stream_c": {"type": "string"},
+            "linpack_c": {"type": "string"}, 
+            "coremark_sources": {"type": "string"}
+          }
+        },
+        "binary_checksums": {
+          "type": "object",
+          "description": "Checksums of compiled binaries",
+          "properties": {
+            "stream_benchmark": {"type": "string"},
+            "linpack_benchmark": {"type": "string"},
+            "coremark_benchmark": {"type": "string"}
+          }
+        },
+        "reproducibility_notes": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Notes about reproducibility considerations"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "manifest_version": "2.0",
+      "container_info": {
+        "container_version": "2.0.0",
+        "container_variant": "universal",
+        "base_os": "Ubuntu 24.04.1 LTS",
+        "build_timestamp": "2024-08-29T03:18:07Z",
+        "optimization_profile": "Runtime architecture detection with GCC",
+        "git_commit": "d3c28719a"
+      },
+      "benchmark_versions": {
+        "stream": {
+          "version": "5.10",
+          "source_url": "https://www.cs.virginia.edu/stream/FTP/Code/stream.c",
+          "source_hash": "sha256:a1b2c3d4e5f6...",
+          "modifications": ["Added OpenMP pragmas", "Configurable array size"],
+          "compilation_flags": "-O3 -fopenmp -DSTREAM_ARRAY_SIZE=80000000",
+          "array_size": 80000000,
+          "iterations": 10
+        },
+        "linpack": {
+          "implementation": "custom",
+          "version": "1.0",
+          "source_type": "custom",
+          "math_library": "system_blas",
+          "math_library_version": "3.12.0",
+          "compilation_flags": "-O3 -fopenmp -lblas -llapack -lm"
+        },
+        "coremark": {
+          "version": "1.0",
+          "source_url": "https://github.com/eembc/coremark",
+          "source_hash": "sha256:1a2b3c4d5e6f...",
+          "implementation_type": "simplified",
+          "iterations": 50000,
+          "compilation_flags": "-O3 -DITERATIONS=50000 -DPERFORMANCE_RUN=1"
+        }
+      },
+      "compiler_versions": {
+        "primary_compiler": {
+          "name": "gcc",
+          "version": "13.3.0",
+          "version_command_output": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+          "installation_path": "/usr/bin/gcc",
+          "optimization_flags": "-O3 -march=native -mtune=native"
+        },
+        "openmp_version": "4.5"
+      },
+      "system_versions": {
+        "os_info": {
+          "name": "Ubuntu",
+          "version": "24.04.1",
+          "kernel_version": "6.8.0-40-generic",
+          "release_info": "Ubuntu 24.04.1 LTS"
+        },
+        "glibc_version": "2.39",
+        "make_version": "4.3"
+      }
+    }
+  ]
+}

@@ -43,8 +43,9 @@ COPY builds/universal/comprehensive/benchmarks/ ./
 
 # Copy execution scripts
 COPY builds/universal/comprehensive/scripts/build-benchmarks.sh ./
+COPY builds/universal/comprehensive/scripts/version-collector.sh ./scripts/
 COPY builds/universal/comprehensive/scripts/run-benchmark.sh /usr/local/bin/
-RUN chmod +x ./build-benchmarks.sh /usr/local/bin/run-benchmark.sh
+RUN chmod +x ./build-benchmarks.sh ./scripts/version-collector.sh /usr/local/bin/run-benchmark.sh
 
 # Build all benchmarks with generic optimization during container build
 ENV CFLAGS="-O3 -fopenmp"

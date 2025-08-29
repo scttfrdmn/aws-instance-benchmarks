@@ -81,7 +81,7 @@ build_coremark() {
     cd ..
 }
 
-# Create unified benchmark information
+# Create unified benchmark information with comprehensive version tracking
 create_benchmark_info() {
     log_info "Creating benchmark information file..."
     
@@ -120,7 +120,15 @@ create_benchmark_info() {
 }
 EOF
 
-    log_success "Benchmark information file created"
+    # Generate comprehensive version manifest
+    log_info "Generating comprehensive version manifest..."
+    if [[ -f /opt/benchmarks/scripts/version-collector.sh ]]; then
+        bash /opt/benchmarks/scripts/version-collector.sh version-manifest.json
+    else
+        log_warning "Version collector script not found, skipping detailed manifest"
+    fi
+
+    log_success "Benchmark information and version manifest created"
 }
 
 # Main build process

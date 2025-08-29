@@ -229,6 +229,42 @@ EOF
     log_success "CoreMark benchmark completed"
 }
 
+# Load version manifest information
+load_version_manifest() {
+    local manifest_file="$BENCHMARK_DIR/version-manifest.json"
+    local version_info="{}"
+    
+    if [[ -f "$manifest_file" ]]; then
+        version_info=$(cat "$manifest_file" 2>/dev/null || echo "{}")
+    else
+        log_warning "Version manifest not found, generating minimal version info"
+        # Generate basic version info if manifest missing
+        version_info=$(cat << EOF
+{
+  "container_info": {
+    "container_version": "2.0.0",
+    "container_variant": "universal",
+    "build_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  },
+  "benchmark_versions": {
+    "stream": {"version": "5.10"},
+    "linpack": {"implementation": "custom", "version": "1.0"}, 
+    "coremark": {"version": "1.0"}
+  },
+  "compiler_versions": {
+    "primary_compiler": {
+      "name": "gcc",
+      "version": "$(gcc --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo 'unknown')"
+    }
+  }
+}
+EOF
+)
+    fi
+    
+    echo "$version_info"
+}
+
 # Generate comprehensive results summary
 generate_summary() {
     local stream_result="$1"
@@ -300,6 +336,9 @@ run_all_benchmarks() {
     # Generate comprehensive summary
     local summary=$(generate_summary "$stream_result" "$linpack_result" "$coremark_result")
     
+    # Load version information
+    local version_info=$(load_version_manifest)
+    
     # Combine all results into final JSON
     local final_results=$(jq -n \
         --argjson system "$system_info" \
@@ -308,7 +347,8 @@ run_all_benchmarks() {
         --argjson linpack "$linpack_result" \
         --argjson coremark "$coremark_result" \
         --argjson summary "$summary" \
-        '$system + $aws + $stream + $linpack + $coremark + $summary')
+        --argjson version "$version_info" \
+        '$system + $aws + $stream + $linpack + $coremark + $summary + $version')
     
     # Save results to file
     echo "$final_results" | jq '.' > "$RESULTS_FILE"
