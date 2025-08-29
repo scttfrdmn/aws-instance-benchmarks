@@ -30,8 +30,8 @@ RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/
 
 # Install modern GCC 13 with broad compatibility
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only gcc@13+gold || \
-    spack install gcc@13+gold
+    spack install --cache-only gcc@13 || \
+    spack install gcc@13
 
 # Install portable OpenBLAS 
 RUN . /opt/spack/share/spack/setup-env.sh && \

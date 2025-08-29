@@ -28,10 +28,10 @@ RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/
     spack mirror add aws-graviton https://cache.spack.io/oci && \
     spack buildcache keys --install --trust
 
-# Install ARM64-optimized GCC 13 with gold linker
+# Install ARM64-optimized GCC 13
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only gcc@13+gold target=aarch64 || \
-    spack install gcc@13+gold target=aarch64
+    spack install --cache-only gcc@13 target=aarch64 || \
+    spack install gcc@13 target=aarch64
 
 # Install OpenBLAS optimized for ARM64
 RUN . /opt/spack/share/spack/setup-env.sh && \
@@ -69,7 +69,7 @@ COPY builds/graviton/arm64-optimized/scripts/graviton-optimize.sh /usr/local/bin
 RUN chmod +x /usr/local/bin/graviton-optimize.sh
 
 # Copy benchmark sources
-COPY benchmarks/ ./
+COPY builds/graviton/arm64-optimized/benchmarks/ ./
 
 # Copy Graviton-specific build scripts
 COPY builds/graviton/arm64-optimized/scripts/build-benchmarks-graviton.sh ./
