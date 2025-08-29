@@ -1,0 +1,523 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/scttfrdmn/aws-instance-benchmarks/main/schemas/v2.0/benchmark-results.json",
+  "title": "AWS Instance Benchmark Results Schema v2.0",
+  "description": "Comprehensive schema for AWS EC2 instance benchmark results including STREAM, LINPACK, and CoreMark with Cloud Compass integration",
+  "type": "object",
+  "required": [
+    "system_info",
+    "benchmark_summary"
+  ],
+  "properties": {
+    "system_info": {
+      "type": "object",
+      "title": "System Information",
+      "description": "Hardware and software environment information",
+      "required": [
+        "timestamp",
+        "architecture",
+        "cpu_model",
+        "cpu_cores",
+        "memory_gb"
+      ],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when the benchmark was executed"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "System hostname"
+        },
+        "architecture": {
+          "type": "string",
+          "enum": ["x86_64", "aarch64", "arm64"],
+          "description": "CPU architecture"
+        },
+        "cpu_model": {
+          "type": "string",
+          "description": "Detailed CPU model name from /proc/cpuinfo"
+        },
+        "cpu_cores": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of CPU cores available"
+        },
+        "cpu_frequency_mhz": {
+          "type": "string",
+          "description": "Maximum CPU frequency in MHz"
+        },
+        "memory_gb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total system memory in GB"
+        },
+        "kernel": {
+          "type": "string",
+          "description": "Linux kernel version"
+        },
+        "os_release": {
+          "type": "string",
+          "description": "Operating system release information"
+        }
+      }
+    },
+    "aws_metadata": {
+      "type": "object",
+      "title": "AWS Instance Metadata",
+      "description": "AWS EC2 instance identification and placement information",
+      "properties": {
+        "instance_id": {
+          "type": "string",
+          "description": "EC2 instance identifier (i-xxxxxxxxx)"
+        },
+        "instance_type": {
+          "type": "string",
+          "description": "EC2 instance type (e.g., m7i.large, c7g.xlarge)"
+        },
+        "availability_zone": {
+          "type": "string",
+          "description": "AWS availability zone (e.g., us-east-1a)"
+        },
+        "region": {
+          "type": "string",
+          "description": "AWS region (e.g., us-east-1)"
+        },
+        "is_aws_instance": {
+          "type": "boolean",
+          "description": "Whether this benchmark was run on an AWS EC2 instance"
+        }
+      }
+    },
+    "stream_benchmark": {
+      "type": "object",
+      "title": "STREAM Memory Bandwidth Benchmark",
+      "description": "Memory bandwidth measurement using STREAM benchmark suite",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "skipped"],
+          "description": "Execution status of the benchmark"
+        },
+        "execution_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this benchmark was executed"
+        },
+        "results": {
+          "type": "object",
+          "properties": {
+            "copy_rate_mb_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Copy operation bandwidth in MB/s"
+            },
+            "scale_rate_mb_s": {
+              "type": "number", 
+              "minimum": 0,
+              "description": "Scale operation bandwidth in MB/s"
+            },
+            "add_rate_mb_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Add operation bandwidth in MB/s"
+            },
+            "triad_rate_mb_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Triad operation bandwidth in MB/s"
+            },
+            "best_rate_mb_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Best bandwidth rate across all operations in MB/s"
+            },
+            "array_size_elements": {
+              "type": "string",
+              "description": "Number of elements in each array"
+            },
+            "memory_per_array_mb": {
+              "type": "string",
+              "description": "Memory consumed per array in MB"
+            },
+            "total_memory_mb": {
+              "type": "string",
+              "description": "Total memory consumed by benchmark in MB"
+            },
+            "validation": {
+              "type": "string",
+              "description": "Validation status of the benchmark results"
+            }
+          }
+        },
+        "raw_output": {
+          "type": "string",
+          "description": "Raw benchmark output for debugging and analysis"
+        }
+      }
+    },
+    "linpack_benchmark": {
+      "type": "object",
+      "title": "LINPACK CPU Performance Benchmark",
+      "description": "CPU performance measurement using LINPACK benchmark",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "skipped"],
+          "description": "Execution status of the benchmark"
+        },
+        "execution_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this benchmark was executed"
+        },
+        "results": {
+          "type": "object",
+          "properties": {
+            "matrix_size": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Size of the matrix used in computation (N x N)"
+            },
+            "execution_time_seconds": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Time taken to solve the linear system in seconds"
+            },
+            "gflops": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Billions of floating point operations per second"
+            },
+            "mflops": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Millions of floating point operations per second"
+            },
+            "residual": {
+              "type": "string",
+              "description": "Numerical residual indicating solution accuracy"
+            },
+            "solution_status": {
+              "type": "string",
+              "description": "Whether the solution passed or failed validation"
+            },
+            "memory_used_mb": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Memory consumed by the benchmark in MB"
+            }
+          }
+        },
+        "raw_output": {
+          "type": "string",
+          "description": "Raw benchmark output for debugging and analysis"
+        }
+      }
+    },
+    "coremark_benchmark": {
+      "type": "object",
+      "title": "CoreMark Integer Performance Benchmark",
+      "description": "Integer performance measurement using CoreMark benchmark",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "skipped"],
+          "description": "Execution status of the benchmark"
+        },
+        "execution_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this benchmark was executed"
+        },
+        "results": {
+          "type": "object",
+          "properties": {
+            "iterations": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of iterations executed"
+            },
+            "execution_time_seconds": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Total execution time in seconds"
+            },
+            "iterations_per_second": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Number of iterations completed per second"
+            },
+            "coremark_score": {
+              "type": "number",
+              "minimum": 0,
+              "description": "CoreMark performance score"
+            },
+            "coremark_per_mhz": {
+              "type": "number",
+              "minimum": 0,
+              "description": "CoreMark score normalized per MHz"
+            },
+            "performance_rating": {
+              "type": "string",
+              "enum": ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+              "description": "Qualitative performance rating"
+            },
+            "validation": {
+              "type": "string",
+              "description": "Validation status of the benchmark results"
+            }
+          }
+        },
+        "raw_output": {
+          "type": "string",
+          "description": "Raw benchmark output for debugging and analysis"
+        }
+      }
+    },
+    "benchmark_summary": {
+      "type": "object",
+      "title": "Comprehensive Benchmark Summary",
+      "description": "Aggregated performance metrics and analysis for Cloud Compass integration",
+      "required": [
+        "execution_timestamp",
+        "version",
+        "schema_version",
+        "performance_metrics"
+      ],
+      "properties": {
+        "execution_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the complete benchmark suite finished"
+        },
+        "version": {
+          "type": "string",
+          "description": "Benchmark container version"
+        },
+        "schema_version": {
+          "type": "string",
+          "enum": ["2.0"],
+          "description": "JSON schema version used for this result"
+        },
+        "performance_metrics": {
+          "type": "object",
+          "description": "Key performance indicators for Cloud Compass analysis",
+          "required": [
+            "memory_bandwidth_mb_s",
+            "cpu_performance_gflops", 
+            "integer_performance_coremark"
+          ],
+          "properties": {
+            "memory_bandwidth_mb_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Best memory bandwidth measurement in MB/s"
+            },
+            "cpu_performance_gflops": {
+              "type": "number",
+              "minimum": 0,
+              "description": "CPU floating point performance in GFLOPS"
+            },
+            "integer_performance_coremark": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Integer performance score from CoreMark"
+            },
+            "composite_performance_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Normalized composite performance score (0.0-1.0)"
+            }
+          }
+        },
+        "performance_ratings": {
+          "type": "object",
+          "description": "Qualitative performance assessments for different workload types",
+          "properties": {
+            "memory": {
+              "type": "string",
+              "enum": ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+              "description": "Memory bandwidth performance rating"
+            },
+            "cpu": {
+              "type": "string",
+              "enum": ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+              "description": "CPU floating point performance rating"
+            },
+            "integer": {
+              "type": "string",
+              "enum": ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+              "description": "Integer performance rating"
+            },
+            "overall": {
+              "type": "string",
+              "enum": ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+              "description": "Overall performance rating across all benchmarks"
+            }
+          }
+        },
+        "benchmark_status": {
+          "type": "object",
+          "description": "Completion status of individual benchmarks",
+          "properties": {
+            "stream_completed": {
+              "type": "boolean",
+              "description": "Whether STREAM benchmark completed successfully"
+            },
+            "linpack_completed": {
+              "type": "boolean",
+              "description": "Whether LINPACK benchmark completed successfully"
+            },
+            "coremark_completed": {
+              "type": "boolean",
+              "description": "Whether CoreMark benchmark completed successfully"
+            }
+          }
+        },
+        "cloud_compass_integration": {
+          "type": "object",
+          "description": "Additional metrics specifically for Cloud Compass recommendations",
+          "properties": {
+            "workload_suitability": {
+              "type": "object",
+              "properties": {
+                "memory_intensive": {
+                  "type": "string",
+                  "enum": ["Excellent", "Good", "Fair", "Poor"],
+                  "description": "Suitability for memory-intensive workloads"
+                },
+                "cpu_intensive": {
+                  "type": "string",
+                  "enum": ["Excellent", "Good", "Fair", "Poor"],
+                  "description": "Suitability for CPU-intensive workloads"
+                },
+                "balanced": {
+                  "type": "string",
+                  "enum": ["Excellent", "Good", "Fair", "Poor"],
+                  "description": "Suitability for balanced workloads"
+                }
+              }
+            },
+            "price_performance": {
+              "type": "object",
+              "properties": {
+                "cost_per_gflops": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Cost per GFLOPS (requires pricing data integration)"
+                },
+                "cost_per_gb_s": {
+                  "type": "number", 
+                  "minimum": 0,
+                  "description": "Cost per GB/s memory bandwidth (requires pricing data integration)"
+                },
+                "value_rating": {
+                  "type": "string",
+                  "enum": ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+                  "description": "Price/performance value rating"
+                }
+              }
+            },
+            "architecture_insights": {
+              "type": "object",
+              "properties": {
+                "cpu_family": {
+                  "type": "string",
+                  "enum": ["Intel Xeon", "AMD EPYC", "AWS Graviton", "Other"],
+                  "description": "CPU family classification"
+                },
+                "generation": {
+                  "type": "string",
+                  "description": "CPU generation (e.g., Sapphire Rapids, Zen4, Graviton3)"
+                },
+                "optimization_features": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["AVX-512", "AVX2", "AVX", "SSE4.2", "NEON", "SVE", "SVE2"]
+                  },
+                  "description": "Detected CPU optimization features"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "compilation_info": {
+      "type": "object",
+      "title": "Compilation Information",
+      "description": "Details about how the benchmarks were compiled",
+      "properties": {
+        "compiler": {
+          "type": "string",
+          "description": "Compiler used to build the benchmarks"
+        },
+        "compiler_version": {
+          "type": "string",
+          "description": "Version of the compiler used"
+        },
+        "optimization_flags": {
+          "type": "string",
+          "description": "Compilation flags used for optimization"
+        },
+        "architecture_flags": {
+          "type": "string",
+          "description": "Architecture-specific compilation flags"
+        },
+        "build_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the benchmarks were compiled"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "system_info": {
+        "timestamp": "2024-08-29T03:18:07Z",
+        "hostname": "benchmark-container",
+        "architecture": "aarch64",
+        "cpu_model": "ARM Neoverse-V1",
+        "cpu_cores": 8,
+        "cpu_frequency_mhz": "2800.0",
+        "memory_gb": 32.0,
+        "kernel": "6.5.0-1025-aws",
+        "os_release": "Ubuntu 24.04.1 LTS"
+      },
+      "aws_metadata": {
+        "instance_id": "i-0123456789abcdef0",
+        "instance_type": "c7g.2xlarge",
+        "availability_zone": "us-east-1a",
+        "region": "us-east-1",
+        "is_aws_instance": true
+      },
+      "benchmark_summary": {
+        "execution_timestamp": "2024-08-29T03:25:14Z",
+        "version": "2.0.0",
+        "schema_version": "2.0",
+        "performance_metrics": {
+          "memory_bandwidth_mb_s": 42356.7,
+          "cpu_performance_gflops": 157.8,
+          "integer_performance_coremark": 28745.2,
+          "composite_performance_score": 0.742
+        },
+        "performance_ratings": {
+          "memory": "Very Good",
+          "cpu": "Excellent",
+          "integer": "Good",
+          "overall": "Very Good"
+        },
+        "benchmark_status": {
+          "stream_completed": true,
+          "linpack_completed": true,
+          "coremark_completed": true
+        }
+      }
+    }
+  ]
+}

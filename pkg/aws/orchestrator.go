@@ -140,6 +140,10 @@ type BenchmarkConfig struct {
 	// Timeout defines the maximum duration for benchmark execution.
 	// Includes instance launch, benchmark execution, and result collection time.
 	Timeout time.Duration
+	
+	// S3Bucket specifies the S3 bucket name for result storage.
+	// If empty, will be auto-generated as "aws-instance-benchmarks-data-{region}".
+	S3Bucket string
 }
 
 // InstanceResult contains comprehensive execution results and metadata for a
@@ -2388,9 +2392,10 @@ func (o *Orchestrator) waitForSSMCommandCompletion(ctx context.Context, instance
 		
 		result, err := o.ssmClient.GetCommandInvocation(ctx, getCommandInput)
 		if err != nil {
-			// Command may not be ready yet, continue waiting
+			// Command may not be ready yet, or instance may have terminated
+			fmt.Printf("   ⚠️  SSM command invocation error (attempt %d/%d): %v\n", attempt+1, maxAttempts, err)
 			time.Sleep(waitTime)
-			continue
+			continue // This will now properly increment the attempt counter
 		}
 		
 		switch result.Status {
@@ -4244,8 +4249,23 @@ func (o *Orchestrator) terminateInstance(ctx context.Context, instanceID string)
 }
 
 func (o *Orchestrator) generateUserDataScript(config BenchmarkConfig) string {
+	// Use the S3 bucket from config, or construct a default one
+	s3Bucket := config.S3Bucket
+	if s3Bucket == "" {
+		s3Bucket = fmt.Sprintf("aws-instance-benchmarks-data-%s", config.Region)
+	}
+	
+	// Create timestamp for unique paths
+	timestamp := time.Now().Format("2006/01/02")
+	s3Path := fmt.Sprintf("s3://%s/instance-benchmarks/raw/%s/%s/%s/", 
+		s3Bucket, timestamp, config.Region, config.InstanceType)
 	return fmt.Sprintf(`#!/bin/bash
 # AWS Instance Benchmark User Data Script
+
+# Log all output for debugging
+exec > /var/log/benchmark-userdata.log 2>&1
+
+echo "Starting benchmark user data script at $(date)"
 
 # Update system
 yum update -y
@@ -4263,6 +4283,8 @@ unzip awscliv2.zip
 # Create benchmark directory
 mkdir -p /opt/benchmark-results
 
+echo "Running benchmark container: %s"
+
 # Run benchmark container
 docker run --rm \
   --privileged \
@@ -4270,10 +4292,40 @@ docker run --rm \
   %s \
   %s > /opt/benchmark-results/benchmark.log 2>&1
 
-# Upload results to S3 (requires IAM permissions)
-aws s3 cp /opt/benchmark-results/ s3://aws-instance-benchmarks-results/%s/%s/ --recursive
+# Check if benchmark succeeded
+if [ $? -eq 0 ]; then
+    echo "Benchmark completed successfully"
+    
+    # Upload results to S3 (requires IAM permissions)
+    echo "Uploading results to S3..."
+    aws s3 cp /opt/benchmark-results/ %s --recursive
+    
+    # Signal completion
+    echo "Benchmark completed at $(date)" > /opt/benchmark-results/completion.txt
+    
+    echo "Results uploaded successfully"
+else
+    echo "Benchmark failed with exit code $?"
+    # Still upload logs for debugging
+    aws s3 cp /opt/benchmark-results/ %s --recursive || true
+fi
 
-# Signal completion
-echo "Benchmark completed at $(date)" > /opt/benchmark-results/completion.txt
-`, config.ContainerImage, config.BenchmarkSuite, config.Region, config.InstanceType)
+echo "Benchmark process complete at $(date)"
+
+# CRITICAL: Self-terminate instance after benchmark completion
+echo "Initiating instance self-termination..."
+
+# Get instance ID from metadata
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+
+# Terminate this instance
+aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
+
+echo "Self-termination command sent at $(date)"
+
+# Give AWS a moment to process the termination, then shutdown
+sleep 30
+shutdown -h now
+`, config.ContainerImage, config.ContainerImage, config.BenchmarkSuite, s3Path, s3Path)
 }

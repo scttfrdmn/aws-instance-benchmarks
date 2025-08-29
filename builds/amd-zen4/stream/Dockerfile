@@ -1,32 +1,37 @@
 # AMD Zen4 optimized STREAM benchmark container
 FROM ubuntu:22.04
 
-# Install dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
-    python3 \
-    python3-pip \
-    git \
-    curl \
+    libomp-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Spack
-RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/spack
-ENV SPACK_ROOT=/opt/spack
-ENV PATH=$SPACK_ROOT/bin:$PATH
+# Set up build environment with AMD-specific optimizations
+ENV CC=gcc
+ENV CXX=g++
+ENV CFLAGS="-O3 -march=native -mtune=native -fopenmp"
+ENV CXXFLAGS="-O3 -march=native -mtune=native -fopenmp"
 
-# Copy Spack configuration
-COPY spack-configs/amd-zen4.yaml /opt/spack/etc/spack/packages.yaml
+# Create workspace
+WORKDIR /opt/stream
 
-# Install STREAM with AMD AOCC optimization
-RUN spack install stream@5.10 %gcc@11 target=zen4 +openmp
-RUN spack load stream
+# Download and compile STREAM with AMD Zen4 optimizations
+RUN wget https://www.cs.virginia.edu/stream/FTP/Code/stream.c && \
+    gcc $CFLAGS -DSTREAM_ARRAY_SIZE=80000000 -DNTIMES=10 \
+    stream.c -o stream_omp -fopenmp
 
-# Create benchmark script
+# Create wrapper script that detects system configuration
 RUN echo '#!/bin/bash' > /usr/local/bin/run-stream && \
-    echo 'spack load stream' >> /usr/local/bin/run-stream && \
-    echo 'stream_omp' >> /usr/local/bin/run-stream && \
+    echo 'export OMP_NUM_THREADS=${OMP_NUM_THREADS:-$(nproc)}' >> /usr/local/bin/run-stream && \
+    echo 'echo "AMD Zen4 Optimized STREAM Benchmark"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Compiler: GCC with -march=native -mtune=native"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Threads: $OMP_NUM_THREADS"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Array size: 80M elements (1.8GB total)"' >> /usr/local/bin/run-stream && \
+    echo 'echo "----------------------------------------"' >> /usr/local/bin/run-stream && \
+    echo 'cd /opt/stream && ./stream_omp' >> /usr/local/bin/run-stream && \
     chmod +x /usr/local/bin/run-stream
 
 ENTRYPOINT ["/usr/local/bin/run-stream"]

@@ -1,13 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-# AWS Instance Benchmarks - Container Build Script
-# This script builds and pushes optimized benchmark containers
+# AWS Instance Benchmarks - Container Build Management Script
+# This script builds all required benchmark containers for different architectures
+# Supports both local development (Podman) and ECR deployment (Docker)
 
 # Configuration
+REGISTRY_PREFIX="${REGISTRY_PREFIX:-localhost/aws-instance-benchmarks}"
+BUILD_DIR="$(dirname "$0")/../builds"
+CONTAINER_TOOL="${CONTAINER_TOOL:-podman}"
+ECR_MODE="${ECR_MODE:-false}"
 REGION="${AWS_REGION:-us-east-1}"
 PROFILE="${AWS_PROFILE:-aws}"
-ECR_REPO_NAME="aws-benchmarks/stream"
+ECR_REPO_NAME="aws-benchmarks"
 
 # Colors for output
 RED='\033[0;31m'
@@ -33,255 +38,234 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Check prerequisites
-check_prerequisites() {
-    log_info "Checking prerequisites..."
-    
-    # Check Docker
-    if ! command -v docker &> /dev/null; then
-        log_error "Docker not found. Please install Docker."
+# Check if container tool is available
+check_container_tool() {
+    if ! command -v "$CONTAINER_TOOL" &> /dev/null; then
+        log_error "Container tool '$CONTAINER_TOOL' not found. Please install $CONTAINER_TOOL or set CONTAINER_TOOL environment variable."
         exit 1
     fi
-    
-    # Check Docker daemon
-    if ! docker info &> /dev/null; then
-        log_error "Docker daemon not running. Please start Docker."
-        exit 1
-    fi
-    
-    # Check AWS CLI and credentials
-    if ! aws sts get-caller-identity --profile "$PROFILE" &> /dev/null; then
-        log_error "AWS credentials not configured for profile '$PROFILE'."
-        exit 1
-    fi
-    
-    # Get account information
-    ACCOUNT_ID=$(aws sts get-caller-identity --profile "$PROFILE" --query Account --output text)
-    ECR_REPO_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$ECR_REPO_NAME"
-    
-    log_success "Docker ready"
-    log_success "AWS account: $ACCOUNT_ID"
-    log_success "ECR repository: $ECR_REPO_URI"
+    log_info "Using container tool: $CONTAINER_TOOL"
 }
 
-# Login to ECR
-ecr_login() {
-    log_info "Logging in to ECR..."
-    
-    aws ecr get-login-password --region "$REGION" --profile "$PROFILE" | \
-        docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
-    
-    log_success "ECR login successful"
-}
-
-# Build container for specific architecture
+# Build a single container
 build_container() {
-    local arch=$1
-    local build_dir="builds/$arch/stream"
+    local arch="$1"
+    local benchmark="$2"
+    local build_path="$BUILD_DIR/$arch/$benchmark"
+    local image_tag="$REGISTRY_PREFIX/$benchmark:$arch"
     
-    log_info "Building container for architecture: $arch"
-    
-    if [ ! -d "$build_dir" ]; then
-        log_error "Build directory not found: $build_dir"
+    if [[ ! -d "$build_path" ]]; then
+        log_warning "Build directory not found: $build_path"
         return 1
     fi
     
-    # Build the container
-    docker build \
-        -t "aws-benchmarks/stream:$arch" \
-        -f "$build_dir/Dockerfile" \
-        "$build_dir"
+    if [[ ! -f "$build_path/Dockerfile" ]]; then
+        log_warning "Dockerfile not found in: $build_path"
+        return 1
+    fi
     
-    log_success "Built container: aws-benchmarks/stream:$arch"
+    log_info "Building container: $image_tag"
+    log_info "Build context: $build_path"
     
-    # Tag for ECR
-    docker tag "aws-benchmarks/stream:$arch" "$ECR_REPO_URI:$arch"
-    log_success "Tagged container for ECR: $ECR_REPO_URI:$arch"
-}
-
-# Push container to ECR
-push_container() {
-    local arch=$1
-    
-    log_info "Pushing container to ECR: $arch"
-    
-    docker push "$ECR_REPO_URI:$arch"
-    log_success "Pushed container: $ECR_REPO_URI:$arch"
-}
-
-# Test container functionality
-test_container() {
-    local arch=$1
-    
-    log_info "Testing container: $arch"
-    
-    # Run a quick test to verify the container works
-    local test_output
-    test_output=$(docker run --rm "aws-benchmarks/stream:$arch" --help 2>&1 || true)
-    
-    if echo "$test_output" | grep -q "STREAM"; then
-        log_success "Container test passed: $arch"
+    if $CONTAINER_TOOL build -t "$image_tag" "$build_path"; then
+        log_success "Successfully built: $image_tag"
+        return 0
     else
-        log_warning "Container test inconclusive: $arch"
-        log_info "Test output: $test_output"
+        log_error "Failed to build: $image_tag"
+        return 1
     fi
 }
 
-# Build all containers
-build_all_containers() {
-    local architectures=("intel-icelake" "graviton3")
-    
-    # Add AMD architecture if Dockerfile exists
-    if [ -f "builds/amd-zen4/stream/Dockerfile" ]; then
-        architectures+=("amd-zen4")
-    fi
-    
-    log_info "Building containers for architectures: ${architectures[*]}"
-    
-    for arch in "${architectures[@]}"; do
-        log_info "Processing architecture: $arch"
-        
-        if build_container "$arch"; then
-            test_container "$arch"
-            push_container "$arch"
-        else
-            log_error "Failed to build container for: $arch"
-            continue
+# List available containers
+list_containers() {
+    log_info "Available container builds:"
+    for arch_dir in "$BUILD_DIR"/*; do
+        if [[ -d "$arch_dir" ]]; then
+            arch=$(basename "$arch_dir")
+            echo -e "  ${YELLOW}$arch:${NC}"
+            for benchmark_dir in "$arch_dir"/*; do
+                if [[ -d "$benchmark_dir" ]] && [[ -f "$benchmark_dir/Dockerfile" ]]; then
+                    benchmark=$(basename "$benchmark_dir")
+                    echo "    - $benchmark"
+                fi
+            done
         fi
     done
 }
 
-# Create AMD Zen4 Dockerfile if it doesn't exist
-create_amd_dockerfile() {
-    local amd_dir="builds/amd-zen4/stream"
+# Build all containers for a specific architecture
+build_arch() {
+    local arch="$1"
+    local arch_dir="$BUILD_DIR/$arch"
     
-    if [ ! -d "$amd_dir" ]; then
-        log_info "Creating AMD Zen4 build directory"
-        mkdir -p "$amd_dir/spack-configs"
-        
-        # Copy base structure from Intel
-        cp -r builds/intel-icelake/stream/spack-configs/* "$amd_dir/spack-configs/"
-        
-        # Create AMD-specific Dockerfile
-        cat > "$amd_dir/Dockerfile" << 'EOF'
-# AMD Zen4 optimized STREAM benchmark container
-FROM ubuntu:22.04
+    if [[ ! -d "$arch_dir" ]]; then
+        log_error "Architecture directory not found: $arch_dir"
+        return 1
+    fi
+    
+    log_info "Building all containers for architecture: $arch"
+    
+    local success_count=0
+    local total_count=0
+    
+    for benchmark_dir in "$arch_dir"/*; do
+        if [[ -d "$benchmark_dir" ]] && [[ -f "$benchmark_dir/Dockerfile" ]]; then
+            benchmark=$(basename "$benchmark_dir")
+            ((total_count++))
+            if build_container "$arch" "$benchmark"; then
+                ((success_count++))
+            fi
+        fi
+    done
+    
+    log_info "Built $success_count/$total_count containers for $arch"
+    return $((total_count - success_count))
+}
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    gfortran \
-    python3 \
-    python3-pip \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Spack
-RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/spack
-ENV SPACK_ROOT=/opt/spack
-ENV PATH=$SPACK_ROOT/bin:$PATH
-
-# Copy Spack configuration
-COPY spack-configs/amd-zen4.yaml /opt/spack/etc/spack/packages.yaml
-
-# Install STREAM with AMD AOCC optimization
-RUN spack install stream@5.10 %gcc@11 target=zen4 +openmp
-RUN spack load stream
-
-# Create benchmark script
-RUN echo '#!/bin/bash' > /usr/local/bin/run-stream && \
-    echo 'spack load stream' >> /usr/local/bin/run-stream && \
-    echo 'stream_omp' >> /usr/local/bin/run-stream && \
-    chmod +x /usr/local/bin/run-stream
-
-ENTRYPOINT ["/usr/local/bin/run-stream"]
-EOF
-        
-        log_success "Created AMD Zen4 Dockerfile"
+# Build all containers
+build_all() {
+    log_info "Building all benchmark containers..."
+    
+    local total_success=0
+    local total_containers=0
+    
+    for arch_dir in "$BUILD_DIR"/*; do
+        if [[ -d "$arch_dir" ]]; then
+            arch=$(basename "$arch_dir")
+            for benchmark_dir in "$arch_dir"/*; do
+                if [[ -d "$benchmark_dir" ]] && [[ -f "$benchmark_dir/Dockerfile" ]]; then
+                    benchmark=$(basename "$benchmark_dir")
+                    ((total_containers++))
+                    if build_container "$arch" "$benchmark"; then
+                        ((total_success++))
+                    fi
+                fi
+            done
+        fi
+    done
+    
+    log_info "Build summary: $total_success/$total_containers containers built successfully"
+    
+    if [[ $total_success -eq $total_containers ]]; then
+        log_success "All containers built successfully!"
+        return 0
+    else
+        log_warning "Some containers failed to build"
+        return 1
     fi
 }
 
-# Generate container manifest
-generate_manifest() {
-    log_info "Generating container manifest"
+# Clean up containers
+clean_containers() {
+    log_info "Cleaning up benchmark containers..."
     
-    cat > builds/container-manifest.json << EOF
-{
-  "containers": {
-    "stream": {
-      "repository": "$ECR_REPO_URI",
-      "architectures": {
-        "intel-icelake": {
-          "tag": "intel-icelake",
-          "target_instances": ["m7i.*", "c7i.*", "r7i.*"],
-          "optimization": "Intel OneAPI with AVX-512",
-          "compiler": "icc",
-          "last_built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        },
-        "graviton3": {
-          "tag": "graviton3",
-          "target_instances": ["m7g.*", "c7g.*", "r7g.*"],
-          "optimization": "GCC with ARM Neon/SVE",
-          "compiler": "gcc",
-          "last_built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        }
-EOF
-
-    if [ -f "builds/amd-zen4/stream/Dockerfile" ]; then
-        cat >> builds/container-manifest.json << EOF
-        ,
-        "amd-zen4": {
-          "tag": "amd-zen4",
-          "target_instances": ["m7a.*", "c7a.*", "r7a.*"],
-          "optimization": "AMD AOCC with AVX-512",
-          "compiler": "aocc",
-          "last_built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        }
-EOF
+    # Remove containers matching our registry prefix
+    local images
+    images=$($CONTAINER_TOOL images --format "{{.Repository}}:{{.Tag}}" | grep "^$REGISTRY_PREFIX" || true)
+    
+    if [[ -z "$images" ]]; then
+        log_info "No benchmark containers found to clean"
+        return 0
     fi
-
-    cat >> builds/container-manifest.json << EOF
-      }
-    }
-  },
-  "metadata": {
-    "generated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "ecr_repository": "$ECR_REPO_URI",
-    "region": "$REGION"
-  }
-}
-EOF
     
-    log_success "Generated container manifest: builds/container-manifest.json"
+    echo "$images" | while read -r image; do
+        log_info "Removing image: $image"
+        $CONTAINER_TOOL rmi "$image" || log_warning "Failed to remove $image"
+    done
+    
+    log_success "Container cleanup completed"
 }
 
-# Main execution
+# Show container status
+show_status() {
+    log_info "Current benchmark containers:"
+    $CONTAINER_TOOL images | grep "$REGISTRY_PREFIX" || log_info "No benchmark containers found"
+}
+
+# Usage information
+usage() {
+    cat << EOF
+Container Build Management Script for AWS Instance Benchmarks
+
+Usage: $0 [COMMAND] [OPTIONS]
+
+Commands:
+    list                    List all available container builds
+    build-all              Build all containers
+    build-arch ARCH        Build all containers for specific architecture
+    build ARCH BENCHMARK   Build specific container
+    clean                  Remove all benchmark containers
+    status                 Show current benchmark containers
+    help                   Show this help message
+
+Architectures:
+    universal             Universal compatibility (fallback)
+    intel-icelake         Intel Ice Lake optimized
+    amd-zen4              AMD Zen 4 optimized  
+    graviton3             AWS Graviton3 optimized
+    graviton4             AWS Graviton4 optimized
+
+Benchmarks:
+    stream                Memory bandwidth benchmark
+
+Environment Variables:
+    CONTAINER_TOOL        Container tool to use (default: podman)
+    REGISTRY_PREFIX       Local registry prefix (default: localhost/aws-instance-benchmarks)
+
+Examples:
+    $0 list                                 # List available builds
+    $0 build-all                           # Build everything
+    $0 build-arch universal                # Build all universal containers
+    $0 build universal stream              # Build specific container
+    $0 clean                               # Clean up all containers
+    $0 status                              # Show current containers
+
+EOF
+}
+
+# Main script logic
 main() {
-    log_info "Starting container build process for AWS Instance Benchmarks"
+    check_container_tool
     
-    check_prerequisites
-    ecr_login
-    create_amd_dockerfile
-    build_all_containers
-    generate_manifest
-    
-    log_success "Container build process completed successfully!"
-    log_info ""
-    log_info "Built containers:"
-    docker images | grep "aws-benchmarks/stream" || log_warning "No local containers found"
-    log_info ""
-    log_info "ECR repository: $ECR_REPO_URI"
-    log_info "Available tags:"
-    aws ecr list-images --repository-name "$ECR_REPO_NAME" --region "$REGION" --profile "$PROFILE" --query 'imageIds[].imageTag' --output table || true
-    log_info ""
-    log_info "Next steps:"
-    log_info "1. Test container execution on EC2 instances"
-    log_info "2. Run initial benchmark validation"
-    log_info "3. Execute full benchmark collection"
+    case "${1:-help}" in
+        "list")
+            list_containers
+            ;;
+        "build-all")
+            build_all
+            ;;
+        "build-arch")
+            if [[ $# -lt 2 ]]; then
+                log_error "Architecture required for build-arch command"
+                usage
+                exit 1
+            fi
+            build_arch "$2"
+            ;;
+        "build")
+            if [[ $# -lt 3 ]]; then
+                log_error "Architecture and benchmark required for build command"
+                usage
+                exit 1
+            fi
+            build_container "$2" "$3"
+            ;;
+        "clean")
+            clean_containers
+            ;;
+        "status")
+            show_status
+            ;;
+        "help"|"-h"|"--help")
+            usage
+            ;;
+        *)
+            log_error "Unknown command: $1"
+            usage
+            exit 1
+            ;;
+    esac
 }
 
-# Script entry point
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+# Run main function with all arguments
+main "$@"

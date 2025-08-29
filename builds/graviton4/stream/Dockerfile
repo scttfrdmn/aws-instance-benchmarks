@@ -1,35 +1,42 @@
-# Architecture-Optimized STREAM Benchmark
-# Target: AWS Graviton4 processors (ARM Neoverse-V2)
-FROM --platform=linux/arm64/v8 ubuntu:22.04
+# AWS Graviton4 optimized STREAM benchmark container
+FROM ubuntu:22.04
 
-# Install build dependencies and tools
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
+    gfortran \
+    libomp-dev \
     libnuma-dev \
     numactl \
-    lscpu \
+    util-linux \
     hwloc \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up optimized compilation environment for Graviton4
-ENV CFLAGS="-O3 -march=native -mtune=native -mcpu=neoverse-v2 -flto -ffast-math"
-ENV CXXFLAGS="-O3 -march=native -mtune=native -mcpu=neoverse-v2 -flto -ffast-math"
+# Set up build environment with Graviton4-specific optimizations
+ENV CC=gcc
+ENV CXX=g++
+ENV CFLAGS="-O3 -mcpu=neoverse-v2 -mtune=neoverse-v2 -fopenmp"
+ENV CXXFLAGS="-O3 -mcpu=neoverse-v2 -mtune=neoverse-v2 -fopenmp"
 
-# Create working directory
-WORKDIR /opt/benchmark
+# Create workspace
+WORKDIR /opt/stream
 
-# Copy STREAM benchmark source
-COPY stream.c /opt/benchmark/
-COPY benchmark_runner.sh /opt/benchmark/
+# Download and compile STREAM with Graviton4 optimizations
+RUN wget https://www.cs.virginia.edu/stream/FTP/Code/stream.c && \
+    gcc $CFLAGS -DSTREAM_ARRAY_SIZE=80000000 -DNTIMES=10 \
+    stream.c -o stream_omp -fopenmp
 
-# Compile architecture-optimized STREAM benchmark
-RUN gcc ${CFLAGS} -DSTREAM_ARRAY_SIZE=100000000 -DNTIMES=10 \
-    -fopenmp -mcpu=neoverse-v2 -mtune=neoverse-v2 \
-    -o stream stream.c
+# Create wrapper script that detects system configuration
+RUN echo '#!/bin/bash' > /usr/local/bin/run-stream && \
+    echo 'export OMP_NUM_THREADS=${OMP_NUM_THREADS:-$(nproc)}' >> /usr/local/bin/run-stream && \
+    echo 'echo "AWS Graviton4 Optimized STREAM Benchmark"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Compiler: GCC with -mcpu=neoverse-v2 -mtune=neoverse-v2 (armv8.5-a+sve2+i8mm+bf16)"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Threads: $OMP_NUM_THREADS"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Array size: 80M elements (1.8GB total)"' >> /usr/local/bin/run-stream && \
+    echo 'echo "----------------------------------------"' >> /usr/local/bin/run-stream && \
+    echo 'cd /opt/stream && ./stream_omp' >> /usr/local/bin/run-stream && \
+    chmod +x /usr/local/bin/run-stream
 
-# Make scripts executable
-RUN chmod +x benchmark_runner.sh
-
-# Run benchmark with NUMA optimizations
-ENTRYPOINT ["./benchmark_runner.sh"]
+ENTRYPOINT ["/usr/local/bin/run-stream"]

@@ -1,20 +1,19 @@
 # Spack configuration for AMD Zen 4 architecture (m7a, c7a, r7a)
-spack:
-  specs:
+specs:
     - stream@5.10 %gcc@11 arch=linux-x86_64-zen4 cflags="-O3 -march=znver4 -mtune=znver4"
     - hpl@2.3 %gcc@11 arch=linux-x86_64-zen4 cflags="-O3 -march=znver4 -mtune=znver4"
 
-  packages:
+packages:
     stream:
       variants: [+openmp]
     hpl:
       variants: [+openmp]
 
-  config:
+config:
     build_stage: /tmp/spack-build
     install_tree: /opt/spack/opt/spack
 
-  compilers:
+compilers:
   - compiler:
       spec: gcc@11
       paths:

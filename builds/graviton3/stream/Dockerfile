@@ -1,49 +1,38 @@
-# Multi-stage build for graviton3 architecture
-FROM ubuntu:22.04 as builder
+# AWS Graviton3 optimized STREAM benchmark container
+FROM ubuntu:22.04
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
-    git \
-    python3 \
-    python3-pip \
-    cmake \
+    gcc \
+    gfortran \
+    libomp-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Spack
-RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/spack
-ENV SPACK_ROOT=/opt/spack
-ENV PATH=$SPACK_ROOT/bin:$PATH
+# Set up build environment with Graviton3-specific optimizations
+ENV CC=gcc
+ENV CXX=g++
+ENV CFLAGS="-O3 -mcpu=neoverse-v1 -mtune=neoverse-v1 -fopenmp"
+ENV CXXFLAGS="-O3 -mcpu=neoverse-v1 -mtune=neoverse-v1 -fopenmp"
 
-# Architecture-specific compiler setup
+# Create workspace
+WORKDIR /opt/stream
 
-# GCC with architecture-specific flags
-RUN apt-get update && apt-get install -y gcc-11 g++-11 && rm -rf /var/lib/apt/lists/*
+# Download and compile STREAM with Graviton3 optimizations
+RUN wget https://www.cs.virginia.edu/stream/FTP/Code/stream.c && \
+    gcc $CFLAGS -DSTREAM_ARRAY_SIZE=80000000 -DNTIMES=10 \
+    stream.c -o stream_omp -fopenmp
 
+# Create wrapper script that detects system configuration
+RUN echo '#!/bin/bash' > /usr/local/bin/run-stream && \
+    echo 'export OMP_NUM_THREADS=${OMP_NUM_THREADS:-$(nproc)}' >> /usr/local/bin/run-stream && \
+    echo 'echo "AWS Graviton3 Optimized STREAM Benchmark"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Compiler: GCC with -mcpu=neoverse-v1 -mtune=neoverse-v1 (armv8.4-a+sve+i8mm+bf16)"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Threads: $OMP_NUM_THREADS"' >> /usr/local/bin/run-stream && \
+    echo 'echo "Array size: 80M elements (1.8GB total)"' >> /usr/local/bin/run-stream && \
+    echo 'echo "----------------------------------------"' >> /usr/local/bin/run-stream && \
+    echo 'cd /opt/stream && ./stream_omp' >> /usr/local/bin/run-stream && \
+    chmod +x /usr/local/bin/run-stream
 
-# Copy Spack configuration
-COPY spack-configs/graviton3.yaml /opt/spack/etc/spack/packages.yaml
-
-# Build benchmarks with architecture-specific optimizations
-
-RUN spack install stream %gcc@11 target=graviton3 cflags="-O3 -march=armv8.2-a+sve -mcpu=neoverse-v1"
-
-
-# Runtime stage
-FROM ubuntu:22.04 as runtime
-
-# Copy built benchmarks
-COPY --from=builder /opt/spack /opt/spack
-
-# Set environment
-ENV SPACK_ROOT=/opt/spack
-ENV PATH=$SPACK_ROOT/bin:$PATH
-
-# Create benchmark runner script
-RUN echo '#!/bin/bash' > /usr/local/bin/run-benchmark && \
-    echo 'spack load stream' >> /usr/local/bin/run-benchmark && \
-    echo 'exec "$@"' >> /usr/local/bin/run-benchmark && \
-    chmod +x /usr/local/bin/run-benchmark
-
-ENTRYPOINT ["/usr/local/bin/run-benchmark"]
+ENTRYPOINT ["/usr/local/bin/run-stream"]

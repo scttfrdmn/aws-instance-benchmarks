@@ -27,6 +27,7 @@ import (
 
 	awspkg "github.com/scttfrdmn/aws-instance-benchmarks/pkg/aws"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/containers"
+	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/daemon"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/discovery"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/monitoring"
 	"github.com/scttfrdmn/aws-instance-benchmarks/pkg/pricing"
@@ -584,6 +585,26 @@ Intel, AMD, and AWS Graviton architectures.`,
 	analyzeCmd.Flags().StringVar(&outputFormat, "format", "table", "Output format: table, json, csv")
 	analyzeCmd.Flags().StringVar(&sortByMetric, "sort", "value_score", "Sort by: value_score, cost_efficiency, performance, price")
 
+	var dashboardCmd = &cobra.Command{
+		Use:   "dashboard",
+		Short: "Start local dashboard for live benchmark monitoring",
+		Long: `Start a local dashboard server that provides real-time monitoring of:
+- Currently running benchmark instances
+- Latest benchmark results from S3
+- Historical performance data and trends
+- Price/performance analysis
+
+The dashboard runs locally on http://localhost:8080 and automatically opens in your browser.
+It includes a background daemon that polls AWS for updates every 30 seconds.`,
+		RunE: runDashboard,
+	}
+
+	var dashboardPort int
+	var pollInterval int
+	
+	dashboardCmd.Flags().IntVar(&dashboardPort, "port", 8080, "Port for dashboard web server")
+	dashboardCmd.Flags().IntVar(&pollInterval, "poll-interval", 30, "Polling interval in seconds for AWS updates")
+
 	// Add schedule command with subcommands
 	var scheduleCmd = &cobra.Command{
 		Use:   "schedule",
@@ -767,6 +788,7 @@ Example usage:
 	rootCmd.AddCommand(processCmd)
 	rootCmd.AddCommand(schemaCmd)
 	rootCmd.AddCommand(analyzeCmd)
+	rootCmd.AddCommand(dashboardCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
@@ -1035,8 +1057,8 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 	for _, instanceType := range instanceTypes {
 		for _, benchmarkSuite := range benchmarkSuites {
 			for iteration := 1; iteration <= iterations; iteration++ {
-				containerImage := fmt.Sprintf("%s/%s:%s-%s", registry, namespace, benchmarkSuite, 
-					getContainerTagForInstance(instanceType))
+				// Use a simple, publicly available image that can run benchmarks
+				containerImage := "ubuntu:22.04"
 
 				config := awspkg.BenchmarkConfig{
 					InstanceType:    instanceType,
@@ -1049,6 +1071,7 @@ func runBenchmarkCmd(cmd *cobra.Command, _ []string) error {
 					SkipQuotaCheck:  skipQuota,
 					MaxRetries:      3,
 					Timeout:         10 * time.Minute,
+					S3Bucket:        bucketName,
 				}
 				
 				jobs = append(jobs, benchmarkJob{
@@ -1329,7 +1352,7 @@ func getContainerTagForInstance(instanceType string) string {
 		}
 	}
 	
-	return "intel-skylake" // Default fallback for older generations
+	return "universal" // Default fallback for older generations and broad compatibility
 }
 
 func storeResults(ctx context.Context, s3Storage *storage.S3Storage, result *awspkg.InstanceResult, benchmarkSuite string, region string) error {
@@ -2170,7 +2193,16 @@ type benchmarkFileResult struct {
 func extractBenchmarkData(data map[string]interface{}, filePath string) *benchmarkFileResult {
 	// Extract metadata
 	metadata, _ := data["metadata"].(map[string]interface{})
+	
+	// Try both schema formats: old "performance_data" and new "performance"
 	performanceData, _ := data["performance_data"].(map[string]interface{})
+	if performanceData == nil {
+		// Try new schema: performance.memory
+		performance, _ := data["performance"].(map[string]interface{})
+		if performance != nil {
+			performanceData, _ = performance["memory"].(map[string]interface{})
+		}
+	}
 
 	if metadata == nil && performanceData == nil {
 		return nil
@@ -2406,6 +2438,70 @@ func getRankingEmoji(rank int) string {
 	default:
 		return fmt.Sprintf("   #%d", rank)
 	}
+}
+
+// loadInfrastructureConfig loads the infrastructure configuration for a specific environment
+func loadInfrastructureConfig(configFile, environment string) (*EnvironmentConfig, error) {
+	configData, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	
+	var infraConfig InfrastructureConfig
+	if err := json.Unmarshal(configData, &infraConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+	
+	envConfig, exists := infraConfig.Environments[environment]
+	if !exists {
+		return nil, fmt.Errorf("environment '%s' not found in config file", environment)
+	}
+	
+	return envConfig, nil
+}
+
+// runDashboard implements the dashboard command
+func runDashboard(cmd *cobra.Command, _ []string) error {
+	ctx := context.Background()
+	
+	// Parse flags
+	port, _ := cmd.Flags().GetInt("port")
+	pollIntervalSeconds, _ := cmd.Flags().GetInt("poll-interval")
+	pollInterval := time.Duration(pollIntervalSeconds) * time.Second
+	
+	// AWS configuration will be loaded by the daemon
+	
+	// Load infrastructure configuration
+	infraConfig, err := loadInfrastructureConfig("configs/aws-infrastructure.json", "us-west-2")
+	if err != nil {
+		return fmt.Errorf("failed to load infrastructure config: %w", err)
+	}
+	
+	// Create daemon
+	dashboardDaemon, err := daemon.NewDashboardDaemon(ctx, infraConfig.Storage.S3Bucket, infraConfig.Region, infraConfig.Profile)
+	if err != nil {
+		return fmt.Errorf("failed to create dashboard daemon: %w", err)
+	}
+	
+	// Start daemon
+	fmt.Printf("🚀 Starting dashboard daemon on port %d...\n", port)
+	fmt.Printf("   📊 Monitoring bucket: %s\n", infraConfig.Storage.S3Bucket)
+	fmt.Printf("   🔄 Poll interval: %v\n", pollInterval)
+	fmt.Printf("   🌐 Dashboard URL: http://localhost:%d\n", port)
+	
+	// Start background polling
+	go func() {
+		if err := dashboardDaemon.Start(ctx); err != nil {
+			log.Printf("Dashboard daemon error: %v", err)
+		}
+	}()
+	
+	// Start HTTP server
+	if err := dashboardDaemon.StartHTTPServer(ctx, port); err != nil {
+		return fmt.Errorf("failed to start dashboard server: %w", err)
+	}
+	
+	return nil
 }
 
 // runDailyProcessing implements the daily data processing command
@@ -2719,6 +2815,7 @@ func runWeeklySchedule(cmd *cobra.Command, _ []string) error {
 		securityGroup: securityGroup,
 		subnet:       subnet,
 		region:       region,
+		bucketName:   bucketName,
 	}
 	
 	if err := executeScheduledPlan(ctx, executor, batchScheduler, plan); err != nil {
@@ -2871,6 +2968,7 @@ type ScheduledBenchmarkExecutor struct {
 	securityGroup string
 	subnet        string
 	region        string
+	bucketName    string
 }
 
 // executeScheduledPlan executes a scheduled benchmark plan
@@ -2911,6 +3009,7 @@ func (ce *CustomBenchmarkExecutor) ExecuteBenchmark(ctx context.Context, job *sc
 		SkipQuotaCheck:  false,
 		MaxRetries:      3,
 		Timeout:         10 * time.Minute,
+		S3Bucket:        ce.executor.bucketName,
 	}
 	
 	// Execute benchmark using existing orchestrator
