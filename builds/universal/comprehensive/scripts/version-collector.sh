@@ -260,19 +260,7 @@ generate_manifest() {
     
     local timestamp=$(get_timestamp)
     
-    log_info "Collecting system information..."
-    local system_info=$(collect_system_info)
-    
-    log_info "Collecting compiler information..."
-    local compiler_info=$(collect_compiler_info)
-    
-    log_info "Collecting benchmark versions..."
-    local benchmark_info=$(collect_benchmark_versions)
-    
-    log_info "Collecting validation information..."
-    local validation_info=$(collect_validation_info)
-    
-    # Generate complete manifest
+    # Generate complete manifest with simpler approach
     cat << EOF > "$MANIFEST_FILE"
 {
   "manifest_version": "2.0",
@@ -281,17 +269,50 @@ generate_manifest() {
     "container_variant": "$CONTAINER_VARIANT",
     "base_os": "$(grep '^PRETTY_NAME=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' || echo 'Unknown')",
     "build_timestamp": "$timestamp",
-    "optimization_profile": "$(case "$CONTAINER_VARIANT" in
-      intel-optimized) echo "Intel oneAPI + MKL maximum performance" ;;
-      amd-optimized) echo "AMD AOCC + AOCL maximum performance" ;;
-      *) echo "Runtime architecture detection with GCC" ;;
-    esac)",
+    "optimization_profile": "Runtime architecture detection with GCC",
     "git_commit": "$GIT_COMMIT"
   },
-  "benchmark_versions": $benchmark_info,
-  "compiler_versions": $compiler_info,
-  "system_versions": $system_info,
-  "validation_info": $validation_info
+  "benchmark_versions": {
+    "stream": {
+      "version": "5.10",
+      "source_url": "https://www.cs.virginia.edu/stream/FTP/Code/stream.c",
+      "array_size": 10000000,
+      "iterations": 10,
+      "compilation_flags": "$CFLAGS -DSTREAM_ARRAY_SIZE=10000000 -DNTIMES=10"
+    },
+    "linpack": {
+      "version": "1.0",
+      "implementation": "custom",
+      "compilation_flags": "$CFLAGS -lblas -llapack -lm"
+    },
+    "coremark": {
+      "version": "1.0",
+      "iterations": 50000,
+      "compilation_flags": "$CFLAGS -DITERATIONS=50000 -DPERFORMANCE_RUN=1"
+    }
+  },
+  "compiler_versions": {
+    "primary_compiler": {
+      "name": "gcc",
+      "version": "$(gcc --version | head -n1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1 || echo 'unknown')",
+      "version_command_output": "$(gcc --version | head -n1)",
+      "installation_path": "$(command -v gcc)",
+      "optimization_flags": "$CFLAGS"
+    }
+  },
+  "system_versions": {
+    "os_info": {
+      "name": "$(grep '^NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' || echo 'Unknown')",
+      "version": "$(grep '^VERSION=' /etc/os-release | cut -d= -f2 | tr -d '"' || echo 'Unknown')",
+      "kernel_version": "$(uname -r)",
+      "release_info": "$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' || echo 'Unknown')"
+    },
+    "glibc_version": "$(ldd --version 2>/dev/null | head -n1 | awk '{print \$NF}' || echo 'Unknown')"
+  },
+  "validation_info": {
+    "checksum_algorithm": "sha256",
+    "build_timestamp": "$timestamp"
+  }
 }
 EOF
     

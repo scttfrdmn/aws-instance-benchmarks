@@ -34,7 +34,8 @@ build_stream() {
     
     if [[ -f stream.c ]]; then
         log_info "Compiling STREAM with: $CFLAGS"
-        gcc $CFLAGS stream.c -o stream_benchmark
+        # Use smaller array size for container environments (10M elements = ~230MB total)
+        gcc $CFLAGS -DSTREAM_ARRAY_SIZE=10000000 -DNTIMES=10 stream.c -o stream_benchmark
         log_success "STREAM benchmark compiled successfully"
     else
         log_error "STREAM source code not found!"
