@@ -1,0 +1,94 @@
+# AWS Graviton Optimized Container (Spack Edition)
+# Maximum ARM64 performance with Spack-managed GCC and NEON optimizations
+FROM ubuntu:24.04
+
+LABEL maintainer="AWS Instance Benchmarks <benchmarks@computecompass.dev>"
+LABEL version="2.1.0-spack"
+LABEL description="AWS Graviton optimized benchmark suite with ARM64 NEON via Spack"
+LABEL architecture="ARM64 (Graviton 2, 3, 4)"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    unzip \
+    bc \
+    util-linux \
+    jq \
+    git \
+    build-essential \
+    python3 \
+    python3-pip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Spack and configure AWS binary cache
+RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/spack && \
+    . /opt/spack/share/spack/setup-env.sh && \
+    spack mirror add aws-graviton https://cache.spack.io/oci && \
+    spack buildcache keys --install --trust
+
+# Install ARM64-optimized GCC 13 with gold linker
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install --cache-only gcc@13+gold target=aarch64 || \
+    spack install gcc@13+gold target=aarch64
+
+# Install OpenBLAS optimized for ARM64
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install --cache-only openblas@0.3.26+shared threads=openmp target=aarch64 || \
+    spack install openblas@0.3.26+shared threads=openmp target=aarch64
+
+# Setup Spack environment in shell startup
+RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc && \
+    echo 'spack load gcc@13' >> /etc/bash.bashrc && \
+    echo 'spack load openblas' >> /etc/bash.bashrc
+
+# Set ARM64-optimized compiler environment
+ENV CC="gcc"
+ENV CXX="g++" 
+ENV FC="gfortran"
+
+# ARM64/Graviton-specific optimization flags
+ENV CFLAGS="-O3 -march=native -mtune=native -mcpu=native -fopenmp -ffast-math -funroll-loops"
+ENV CXXFLAGS="-O3 -march=native -mtune=native -mcpu=native -fopenmp -ffast-math -funroll-loops"
+ENV FCFLAGS="-O3 -march=native -mtune=native -mcpu=native -fopenmp -ffast-math -funroll-loops"
+
+# ARM64 OpenBLAS linking (will be set after Spack load)
+ENV LDFLAGS="-lopenblas -lm -fopenmp"
+
+# ARM64 threading optimization
+ENV OMP_NUM_THREADS="auto"
+ENV OMP_PROC_BIND="close"
+ENV OMP_PLACES="cores"
+
+# Create benchmark workspace
+WORKDIR /opt/benchmarks
+
+# Copy Graviton-optimized detection script
+COPY builds/graviton/arm64-optimized/scripts/graviton-optimize.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/graviton-optimize.sh
+
+# Copy benchmark sources
+COPY benchmarks/ ./
+
+# Copy Graviton-specific build scripts
+COPY builds/graviton/arm64-optimized/scripts/build-benchmarks-graviton.sh ./
+COPY builds/graviton/arm64-optimized/scripts/version-collector-graviton.sh ./scripts/
+COPY builds/graviton/arm64-optimized/scripts/run-benchmark-graviton-spack.sh /usr/local/bin/run-benchmark-graviton.sh
+
+# Set executable permissions
+RUN chmod +x ./build-benchmarks-graviton.sh ./scripts/version-collector-graviton.sh /usr/local/bin/run-benchmark-graviton.sh
+
+# Build benchmarks with Spack-managed ARM64 optimizations
+RUN bash -c ". /opt/spack/share/spack/setup-env.sh && spack load gcc@13 openblas && ./build-benchmarks-graviton.sh"
+
+# Validate installation
+RUN bash -c ". /opt/spack/share/spack/setup-env.sh && spack load gcc@13 openblas && ls -la stream/ linpack/ coremark/ && echo 'Graviton Spack build complete'"
+
+# Container metadata
+ENV CONTAINER_VERSION="2.1.0-spack"
+ENV CONTAINER_VARIANT="graviton-arm64-spack-optimized"
+ENV OPTIMIZATION_PROFILE="ARM64 GCC + OpenBLAS maximum performance via Spack"
+
+# Set default command
+CMD ["run-benchmark-graviton.sh"]

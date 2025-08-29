@@ -31,15 +31,14 @@ RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/
     spack buildcache keys --install --trust
 
 # Install Intel oneAPI compilers from Spack
-# Note: Intel oneAPI requires EULA acceptance similar to AMD AOCC
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-compilers@2024.0.0+license-agreed || \
-    spack install intel-oneapi-compilers@2024.0.0+license-agreed
+    spack install --cache-only intel-oneapi-compilers || \
+    spack install intel-oneapi-compilers
 
 # Install Intel MKL from Spack  
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-mkl@2024.0.0+license-agreed || \
-    spack install intel-oneapi-mkl@2024.0.0+license-agreed
+    spack install --cache-only intel-oneapi-mkl || \
+    spack install intel-oneapi-mkl
 
 # Setup Spack environment in shell startup
 RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc && \
