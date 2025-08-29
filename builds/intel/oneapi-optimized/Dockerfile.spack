@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
 # Install Spack
 RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/spack && \
     . /opt/spack/share/spack/setup-env.sh && \
-    spack mirror add aws-graviton https://cache.spack.io/oci && \
+    spack mirror add binary_mirror https://binaries.spack.io/develop && \
     spack buildcache keys --install --trust
 
 # Install Intel oneAPI compilers
