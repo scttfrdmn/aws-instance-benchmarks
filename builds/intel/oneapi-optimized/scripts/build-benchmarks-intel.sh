@@ -3,7 +3,7 @@
 # Intel oneAPI Optimized Benchmark Build Script
 # Compiles STREAM, LINPACK, and CoreMark with Intel compilers and MKL acceleration
 
-set -euo pipefail
+set -eo pipefail
 
 # Color output  
 RED='\033[0;31m'

@@ -3,7 +3,7 @@
 # Intel oneAPI Architecture Detection and Optimization Script
 # Detects specific Intel microarchitectures and applies optimal compiler flags
 
-set -euo pipefail
+set -eo pipefail
 
 # Color output
 RED='\033[0;31m'
