@@ -23,35 +23,36 @@ RUN apt-get update && apt-get install -y \
     libomp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install AMD AOCC (AMD Optimizing C/C++ Compiler)
-# Note: In production, this would download from AMD developer portal
-# For demo, we'll simulate with GCC optimized for AMD
-RUN mkdir -p /opt/amd/aocc && \
-    cd /opt/amd/aocc && \
-    echo "AMD AOCC simulation environment" > aocc_version.txt
+# Download and install AMD AOCC 5.1 compiler
+RUN cd /tmp && \
+    wget --no-check-certificate -q "https://download.amd.com/developer/eula/aocc-compiler/aocc-compiler-5.1.0_1_amd64.deb" -O aocc-compiler-5.1.0_1_amd64.deb && \
+    dpkg -i aocc-compiler-5.1.0_1_amd64.deb || apt-get install -f -y && \
+    rm -f aocc-compiler-5.1.0_1_amd64.deb
 
-# Download and install AMD AOCL (AMD Optimized CPU Libraries) 
-# Note: In production, this would be the actual AOCL package
-RUN mkdir -p /opt/amd/aocl && \
-    cd /opt/amd/aocl && \
-    echo "AMD AOCL simulation environment" > aocl_version.txt
+# Download and install AMD AOCL 5.1 libraries  
+RUN cd /tmp && \
+    wget --no-check-certificate -q "https://download.amd.com/developer/eula/aocl/aocl-linux-aocc-5.1.0_1_amd64.deb" -O aocl-linux-aocc-5.1.0_1_amd64.deb && \
+    dpkg -i aocl-linux-aocc-5.1.0_1_amd64.deb || apt-get install -f -y && \
+    rm -f aocl-linux-aocc-5.1.0_1_amd64.deb
 
-# Set AMD optimization environment variables
-ENV AMD_AOCC_ROOT="/opt/amd/aocc"
-ENV AMD_AOCL_ROOT="/opt/amd/aocl"
+# Set AMD optimization environment variables for AOCC 5.1
+ENV AMD_AOCC_ROOT="/opt/AMD/aocc-compiler-5.1.0"
+ENV AMD_AOCL_ROOT="/opt/AMD/aocl-5.1.0"
+ENV PATH="$AMD_AOCC_ROOT/bin:$PATH"
+ENV LD_LIBRARY_PATH="$AMD_AOCC_ROOT/lib:$AMD_AOCL_ROOT/lib:$LD_LIBRARY_PATH"
 
-# AMD-optimized compiler settings (simulated with GCC AMD flags)
-ENV CC="gcc"
-ENV CXX="g++" 
-ENV FC="gfortran"
+# AMD AOCC compiler settings
+ENV CC="clang"
+ENV CXX="clang++" 
+ENV FC="flang"
 
-# AMD EPYC-specific optimization flags
-ENV CFLAGS="-O3 -march=znver3 -mtune=znver3 -fopenmp -ffast-math -funroll-loops -mfma -mavx2"
-ENV CXXFLAGS="-O3 -march=znver3 -mtune=znver3 -fopenmp -ffast-math -funroll-loops -mfma -mavx2"
-ENV FCFLAGS="-O3 -march=znver3 -mtune=znver3 -fopenmp -ffast-math -funroll-loops"
+# AMD EPYC-specific optimization flags for AOCC
+ENV CFLAGS="-O3 -march=znver4 -mtune=znver4 -fopenmp -ffast-math -funroll-loops"
+ENV CXXFLAGS="-O3 -march=znver4 -mtune=znver4 -fopenmp -ffast-math -funroll-loops"
+ENV FCFLAGS="-O3 -march=znver4 -mtune=znver4 -fopenmp -ffast-math -funroll-loops"
 
-# AMD AOCL-optimized linking (simulated with optimized BLAS/LAPACK)
-ENV LDFLAGS="-lblas -llapack -lm -fopenmp"
+# AMD AOCL-optimized linking with real AOCL libraries
+ENV LDFLAGS="-L$AMD_AOCL_ROOT/lib -laocl_blas -laocl_lapack -lm -fopenmp"
 
 # AMD threading optimization
 ENV OMP_NUM_THREADS="auto"
@@ -62,16 +63,16 @@ ENV OMP_PLACES="cores"
 WORKDIR /opt/benchmarks
 
 # Copy AMD-optimized detection script
-COPY builds/amd/aocc-optimized/scripts/amd-optimize.sh /usr/local/bin/
+COPY scripts/amd-optimize.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/amd-optimize.sh
 
-# Copy benchmark sources (reuse universal sources)
-COPY builds/universal/comprehensive/benchmarks/ ./
+# Copy benchmark sources
+COPY benchmarks/ ./
 
 # Copy AMD-specific build scripts
-COPY builds/amd/aocc-optimized/scripts/build-benchmarks-amd.sh ./
-COPY builds/amd/aocc-optimized/scripts/version-collector-amd.sh ./scripts/
-COPY builds/amd/aocc-optimized/scripts/run-benchmark-amd.sh /usr/local/bin/
+COPY scripts/build-benchmarks-amd.sh ./
+COPY scripts/version-collector-amd.sh ./scripts/
+COPY scripts/run-benchmark-amd.sh /usr/local/bin/
 
 # Set executable permissions
 RUN chmod +x ./build-benchmarks-amd.sh ./scripts/version-collector-amd.sh /usr/local/bin/run-benchmark-amd.sh

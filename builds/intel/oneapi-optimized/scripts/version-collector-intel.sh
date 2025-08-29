@@ -194,9 +194,10 @@ generate_intel_manifest() {
     "git_commit": "$GIT_COMMIT",
     "target_architecture": "Intel Xeon (Ice Lake, Sapphire Rapids, Emerald Rapids)"
   },
-  "intel_oneapi": $(collect_intel_compiler_info),
-  "intel_mkl": $(collect_intel_mkl_info),
-  "benchmark_versions": $(collect_intel_benchmark_info),
+  "intel_compiler": {
+    "icx_version": "$(icx --version | head -n1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1 || echo 'unknown')",
+    "mkl_version": "$(find \${MKLROOT:-/opt/intel/oneapi/mkl/latest} -name 'mkl_version.h' -exec grep 'INTEL_MKL_VERSION' {} \\; 2>/dev/null | head -1 | awk '{print \$3}' || echo 'unknown')"
+  },
   "system_versions": {
     "os_info": {
       "name": "$(grep '^NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' || echo 'Unknown')",
@@ -241,9 +242,8 @@ EOF
     log_info "=== Intel oneAPI Manifest Summary ==="
     log_info "Container: $CONTAINER_VARIANT v$CONTAINER_VERSION"
     log_info "Build time: $timestamp"
-    log_info "oneAPI version: $(jq -r '.intel_oneapi.oneapi_toolkit.version' "$MANIFEST_FILE" 2>/dev/null || echo 'Unknown')"
-    log_info "Intel C compiler: $(jq -r '.intel_oneapi.intel_compilers.c_compiler.version' "$MANIFEST_FILE" 2>/dev/null || echo 'Unknown')"
-    log_info "MKL version: $(jq -r '.intel_mkl.mkl_library.version' "$MANIFEST_FILE" 2>/dev/null || echo 'Unknown')"
+    log_info "Intel C compiler: $(jq -r '.intel_compiler.icx_version' "$MANIFEST_FILE" 2>/dev/null || echo 'Unknown')"
+    log_info "MKL version: $(jq -r '.intel_compiler.mkl_version' "$MANIFEST_FILE" 2>/dev/null || echo 'Unknown')"
     log_success "Intel oneAPI comprehensive tracking complete"
 }
 

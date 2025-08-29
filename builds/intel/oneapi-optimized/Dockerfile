@@ -50,16 +50,16 @@ ENV KMP_AFFINITY="granularity=fine,compact,1,0"
 WORKDIR /opt/benchmarks
 
 # Copy Intel-optimized detection script
-COPY builds/intel/oneapi-optimized/scripts/intel-optimize.sh /usr/local/bin/
+COPY scripts/intel-optimize.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/intel-optimize.sh
 
 # Copy benchmark sources (reuse universal sources)
-COPY builds/universal/comprehensive/benchmarks/ ./
+COPY benchmarks/ ./
 
 # Copy Intel-specific build script
-COPY builds/intel/oneapi-optimized/scripts/build-benchmarks-intel.sh ./
-COPY builds/intel/oneapi-optimized/scripts/version-collector-intel.sh ./scripts/
-COPY builds/intel/oneapi-optimized/scripts/run-benchmark-intel.sh /usr/local/bin/
+COPY scripts/build-benchmarks-intel.sh ./
+COPY scripts/version-collector-intel.sh ./scripts/
+COPY scripts/run-benchmark-intel.sh /usr/local/bin/
 
 # Set executable permissions
 RUN chmod +x ./build-benchmarks-intel.sh ./scripts/version-collector-intel.sh /usr/local/bin/run-benchmark-intel.sh

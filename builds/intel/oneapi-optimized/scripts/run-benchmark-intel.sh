@@ -3,7 +3,7 @@
 # Intel oneAPI Optimized Benchmark Runner
 # Executes STREAM, LINPACK, and CoreMark with Intel-specific optimizations
 
-set -euo pipefail
+set -eo pipefail
 
 # Color output
 RED='\033[0;31m'

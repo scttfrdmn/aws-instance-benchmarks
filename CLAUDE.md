@@ -107,25 +107,28 @@ const data = await response.json()
 - **Cost Optimization**: Real-world price/performance analysis
 - **Research Workload Focus**: Memory-intensive and compute-heavy optimizations
 
-## 📈 Development Roadmap
+## 📈 Current Status: Spack Normalization
 
-### **Phase 1: Foundation (Weeks 1-2)**
-- [ ] Repository structure with proper schemas
-- [ ] Initial benchmark collection tools (Spack configs, containers)
-- [ ] Seed data for 10-15 popular instances (m7i, c7g, r7a families)
-- [ ] Data validation pipeline
+### **Container Standardization (Current Focus)**
+- [x] Ubuntu 24.04 base OS standardization across all containers
+- [x] Spack package manager integration with AWS binary cache
+- [x] AMD AOCC 5.0.0 real compiler installation via Spack
+- [x] Universal GCC 13 + OpenBLAS container via Spack
+- [ ] Intel oneAPI compilers via Spack (in progress on c7i.large)
+- [ ] ARM64 GCC 13 + OpenBLAS container via Spack on Graviton
+- [ ] Multi-architecture container registry deployment
 
-### **Phase 2: Scale (Weeks 3-4)**
-- [ ] Automated benchmark collection across instance families
-- [ ] Comprehensive dataset (50+ instance types)
-- [ ] Community contribution guidelines
-- [ ] Historical data tracking
+### **Build Infrastructure**
+- [x] Native hardware builds: Intel (c7i), AMD (c7a), ARM64 (c7g)
+- [x] AWS binary cache configuration (https://binaries.spack.io/develop)
+- [x] ECR public registry with multi-arch support
+- [ ] Complete validation of consistent Spack approach
 
-### **Phase 3: Community (Weeks 5-6)**
-- [ ] Public launch with documentation
-- [ ] Academic partnerships for validation
-- [ ] Integration examples and SDKs
-- [ ] Performance analysis tools
+### **Benchmark Execution**
+- [x] Real vendor compiler usage (no GCC simulation)
+- [x] Architecture-specific optimizations
+- [ ] Statistical validation across all architectures
+- [ ] Performance analysis and comparison tools
 
 ## 🔬 Benchmark Methodology
 

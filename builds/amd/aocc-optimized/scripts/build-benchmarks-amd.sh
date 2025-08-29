@@ -24,7 +24,7 @@ log_info "Initializing AMD AOCC optimization environment..."
 source "/usr/local/bin/amd-optimize.sh"
 
 log_info "Building benchmarks with AMD AOCC optimizations..."
-log_info "Compiler: $(gcc --version | head -n1)"
+log_info "Compiler: $(clang --version | head -n1)"
 log_info "Architecture: ${ZEN_GENERATION:-unknown}"
 log_info "Flags: $CFLAGS"
 
@@ -36,8 +36,8 @@ build_stream_amd() {
     
     if [[ -f stream.c ]]; then
         log_info "Compiling STREAM with AMD Zen optimizations..."
-        # AMD EPYC-optimized STREAM with vectorization
-        gcc $CFLAGS \
+        # AMD EPYC-optimized STREAM with AOCC vectorization
+        clang $CFLAGS \
             -DSTREAM_ARRAY_SIZE=80000000 \
             -DNTIMES=10 \
             -DSTREAM_TYPE=double \
@@ -62,7 +62,7 @@ build_linpack_amd() {
     if [[ -f linpack.c ]]; then
         log_info "Compiling LINPACK with AMD AOCL BLAS simulation..."
         # AMD AOCL provides optimized DGEMM routines
-        gcc $CFLAGS \
+        clang $CFLAGS \
             -DAMD_AOCL \
             -DAMD_EPYC_OPTIMIZED \
             linpack.c -o linpack_benchmark_amd $LDFLAGS
@@ -85,7 +85,7 @@ build_coremark_amd() {
     if [[ -f core_main.c && -f coremark.h ]]; then
         log_info "Compiling CoreMark with AMD Zen optimizations..."
         # AMD processors excel at high-frequency integer operations
-        gcc $CFLAGS \
+        clang $CFLAGS \
             -DITERATIONS=100000 \
             -DPERFORMANCE_RUN=1 \
             -DAMD_EPYC_OPTIMIZED \
@@ -141,7 +141,7 @@ create_amd_benchmark_info() {
     "cflags": "$CFLAGS",
     "ldflags": "$LDFLAGS",
     "architecture_target": "${AMD_ARCH_FLAGS:-unknown}",
-    "zen_generation": "$ZEN_GENERATION",
+    "zen_generation": "${ZEN_GENERATION:-unknown}",
     "optimization_profile": "AMD AOCC + AOCL maximum performance for AMD EPYC"
   }
 }
