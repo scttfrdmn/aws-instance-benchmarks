@@ -30,15 +30,15 @@ RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/
     spack mirror add aws-graviton https://cache.spack.io/oci && \
     spack buildcache keys --install --trust
 
-# Install Intel oneAPI compilers from Spack
+# Install Intel oneAPI compilers from Spack (use stable 2024.2 version)
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-compilers || \
-    spack install intel-oneapi-compilers
+    spack install --cache-only intel-oneapi-compilers@2024.2.1 || \
+    spack install intel-oneapi-compilers@2024.2.1
 
-# Install Intel MKL from Spack  
+# Install Intel MKL from Spack (use stable 2024.2 version)
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-mkl || \
-    spack install intel-oneapi-mkl
+    spack install --cache-only intel-oneapi-mkl@2024.2.1 || \
+    spack install intel-oneapi-mkl@2024.2.1
 
 # Setup Spack environment in shell startup
 RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc && \
