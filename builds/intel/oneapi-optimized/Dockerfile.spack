@@ -1,11 +1,10 @@
-# Phase 2: Intel oneAPI Optimized Container (Spack Edition)
-# Maximum performance for Intel Xeon processors with Spack-managed oneAPI toolkit and MKL
+# Intel oneAPI Optimized Container (Spack Edition)
+# Simple Ubuntu 24.04 + Spack + Intel oneAPI compilers
 FROM ubuntu:24.04
 
 LABEL maintainer="AWS Instance Benchmarks <benchmarks@computecompass.dev>"
 LABEL version="2.1.0-spack"
-LABEL description="Intel oneAPI optimized benchmark suite with MKL acceleration via Spack"
-LABEL architecture="Intel Xeon (Ice Lake, Sapphire Rapids, Emerald Rapids)"
+LABEL description="Intel oneAPI optimized benchmark suite via Spack"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -17,64 +16,35 @@ RUN apt-get update && apt-get install -y \
     jq \
     git \
     build-essential \
-    gfortran \
     python3 \
     python3-pip \
     ca-certificates \
-    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Spack and configure AWS binary cache
+# Install Spack
 RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/spack && \
     . /opt/spack/share/spack/setup-env.sh && \
     spack mirror add aws-graviton https://cache.spack.io/oci && \
     spack buildcache keys --install --trust
 
-# Install Intel oneAPI compilers from Spack (use stable 2024.2 version)
+# Install Intel oneAPI compilers
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-compilers@2024.2.1 || \
-    spack install intel-oneapi-compilers@2024.2.1
+    spack install intel-oneapi-compilers
 
-# Install Intel MKL from Spack (use stable 2024.2 version)
+# Install Intel MKL  
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-mkl@2024.2.1 || \
-    spack install intel-oneapi-mkl@2024.2.1
+    spack install intel-oneapi-mkl
 
-# Setup Spack environment in shell startup
+# Setup Spack environment
 RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc && \
     echo 'spack load intel-oneapi-compilers' >> /etc/bash.bashrc && \
     echo 'spack load intel-oneapi-mkl' >> /etc/bash.bashrc
 
-# Set Intel-optimized compiler environment
-ENV CC="icx"
-ENV CXX="icpx" 
-ENV FC="ifx"
-
-# Intel-specific optimization flags for Sapphire Rapids/Ice Lake
-ENV CFLAGS="-O3 -xHost -ipo -qopenmp -march=native -mtune=native"
-ENV CXXFLAGS="-O3 -xHost -ipo -qopenmp -march=native -mtune=native" 
-ENV FCFLAGS="-O3 -xHost -ipo -qopenmp -march=native -mtune=native"
-
-# Intel MKL linking flags (will be set after Spack load)
-ENV LDFLAGS="-qmkl=parallel"
-
-# Set threading for optimal performance
-ENV OMP_NUM_THREADS="auto"
-ENV MKL_NUM_THREADS="auto" 
-ENV MKL_DYNAMIC="FALSE"
-ENV KMP_AFFINITY="granularity=fine,compact,1,0"
-
 # Create benchmark workspace
 WORKDIR /opt/benchmarks
 
-# Copy Intel-optimized detection script
-COPY builds/intel/oneapi-optimized/scripts/intel-optimize.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/intel-optimize.sh
-
-# Copy benchmark sources
-COPY benchmarks/ ./
-
-# Copy Intel-specific build scripts
+# Copy benchmark sources and scripts
+COPY builds/intel/oneapi-optimized/benchmarks/ ./
 COPY builds/intel/oneapi-optimized/scripts/build-benchmarks-intel.sh ./
 COPY builds/intel/oneapi-optimized/scripts/version-collector-intel.sh ./scripts/
 COPY builds/intel/oneapi-optimized/scripts/run-benchmark-intel-spack.sh /usr/local/bin/run-benchmark-intel.sh
@@ -82,16 +52,12 @@ COPY builds/intel/oneapi-optimized/scripts/run-benchmark-intel-spack.sh /usr/loc
 # Set executable permissions
 RUN chmod +x ./build-benchmarks-intel.sh ./scripts/version-collector-intel.sh /usr/local/bin/run-benchmark-intel.sh
 
-# Build benchmarks with Spack-managed Intel oneAPI optimizations
+# Build benchmarks
 RUN bash -c ". /opt/spack/share/spack/setup-env.sh && spack load intel-oneapi-compilers intel-oneapi-mkl && ./build-benchmarks-intel.sh"
-
-# Validate installation
-RUN bash -c ". /opt/spack/share/spack/setup-env.sh && spack load intel-oneapi-compilers intel-oneapi-mkl && ls -la stream/ linpack/ coremark/ && echo 'Intel oneAPI Spack build complete'"
 
 # Container metadata
 ENV CONTAINER_VERSION="2.1.0-spack"
 ENV CONTAINER_VARIANT="intel-oneapi-spack-optimized"
-ENV OPTIMIZATION_PROFILE="Intel oneAPI + MKL maximum performance via Spack"
 
 # Set default command
 CMD ["run-benchmark-intel.sh"]
