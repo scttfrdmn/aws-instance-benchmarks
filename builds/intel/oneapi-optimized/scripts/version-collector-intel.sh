@@ -3,7 +3,7 @@
 # Intel oneAPI Version Collector Script  
 # Captures Intel-specific compiler, MKL, and optimization information
 
-set -euo pipefail
+set -eo pipefail
 
 # Color output
 RED='\033[0;31m'

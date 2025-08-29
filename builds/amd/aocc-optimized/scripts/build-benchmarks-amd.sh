@@ -140,7 +140,7 @@ create_amd_benchmark_info() {
     "compiler": "$(gcc --version | head -n1)",
     "cflags": "$CFLAGS",
     "ldflags": "$LDFLAGS",
-    "architecture_target": "$AMD_ARCH_FLAGS",
+    "architecture_target": "${AMD_ARCH_FLAGS:-unknown}",
     "zen_generation": "$ZEN_GENERATION",
     "optimization_profile": "AMD AOCC + AOCL maximum performance for AMD EPYC"
   }
