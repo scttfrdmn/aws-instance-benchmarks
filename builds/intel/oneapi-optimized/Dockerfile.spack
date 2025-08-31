@@ -48,7 +48,7 @@ COPY builds/intel/oneapi-optimized/scripts/run-benchmark-intel-spack.sh /usr/loc
 RUN chmod +x ./build-benchmarks-intel.sh ./scripts/version-collector-intel.sh /usr/local/bin/intel-optimize.sh /usr/local/bin/run-benchmark-intel.sh
 
 # Build benchmarks
-RUN bash -c "source /opt/intel/oneapi/setvars.sh && ./build-benchmarks-intel.sh"
+RUN bash -c "source /opt/intel/oneapi/setvars.sh --force && ./build-benchmarks-intel.sh"
 
 # Container metadata
 ENV CONTAINER_VERSION="2.1.0-spack"
