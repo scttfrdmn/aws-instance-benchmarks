@@ -38,7 +38,7 @@ RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc
 WORKDIR /opt/benchmarks
 
 # Copy benchmark sources and scripts
-COPY benchmarks/ ./
+COPY builds/universal/comprehensive/benchmarks/ ./
 COPY builds/intel/oneapi-optimized/scripts/build-benchmarks-intel.sh ./
 COPY builds/intel/oneapi-optimized/scripts/version-collector-intel.sh ./scripts/
 COPY builds/intel/oneapi-optimized/scripts/intel-optimize.sh /usr/local/bin/
