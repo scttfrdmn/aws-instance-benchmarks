@@ -1,6 +1,6 @@
-# Intel oneAPI Optimized Container (Spack Edition)
-# Simple Ubuntu 24.04 + Spack + Intel oneAPI compilers
-FROM ubuntu:24.04
+# Intel oneAPI Optimized Container (Official Intel Base)
+# Uses Intel's official oneAPI container with Spack for additional packages
+FROM intel/oneapi-basekit:2025.1.0-0-devel-ubuntu22.04
 
 LABEL maintainer="AWS Instance Benchmarks <benchmarks@computecompass.dev>"
 LABEL version="2.1.0-spack"
@@ -27,18 +27,11 @@ RUN git clone -c feature.manyFiles=true https://github.com/spack/spack.git /opt/
     spack mirror add binary_mirror https://binaries.spack.io/develop && \
     spack buildcache keys --install --trust
 
-# Install Intel oneAPI compilers from binary cache only
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-compilers
+# Intel oneAPI already installed in base image - just setup environment
+RUN echo 'source /opt/intel/oneapi/setvars.sh' >> /etc/bash.bashrc
 
-# Install Intel MKL from binary cache only
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install --cache-only intel-oneapi-mkl
-
-# Setup Spack environment
-RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc && \
-    echo 'spack load intel-oneapi-compilers' >> /etc/bash.bashrc && \
-    echo 'spack load intel-oneapi-mkl' >> /etc/bash.bashrc
+# Setup Spack environment (oneAPI compilers already available from base image)
+RUN echo '. /opt/spack/share/spack/setup-env.sh' >> /etc/bash.bashrc
 
 # Create benchmark workspace
 WORKDIR /opt/benchmarks
