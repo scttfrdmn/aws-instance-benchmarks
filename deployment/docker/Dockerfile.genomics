@@ -1,0 +1,168 @@
+# Reproducible Genomics Benchmark Container
+# Provides consistent environment for genomics computing benchmarks
+
+FROM ubuntu:22.04
+
+LABEL maintainer="AWS Instance Benchmarks Project"
+LABEL description="Genomics computing benchmarks for AWS instance performance analysis"
+LABEL version="2.0"
+
+# Avoid interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential \
+    cmake \
+    autoconf \
+    automake \
+    libtool \
+    pkg-config \
+    # Scientific computing libraries
+    libblas-dev \
+    liblapack-dev \
+    libfftw3-dev \
+    libhdf5-dev \
+    libnetcdf-dev \
+    # Parallel computing
+    libopenmpi-dev \
+    openmpi-bin \
+    # Development tools
+    git \
+    wget \
+    curl \
+    unzip \
+    # Python and R
+    python3 \
+    python3-pip \
+    python3-dev \
+    r-base \
+    r-base-dev \
+    # Genomics-specific tools
+    samtools \
+    bcftools \
+    bedtools \
+    tabix \
+    # System monitoring
+    htop \
+    iotop \
+    sysstat \
+    numactl \
+    hwloc-nox \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /opt/genomics-benchmarks
+
+# Install Python packages for genomics
+RUN pip3 install --no-cache-dir \
+    numpy \
+    scipy \
+    pandas \
+    matplotlib \
+    seaborn \
+    biopython \
+    pysam \
+    scikit-allel \
+    allel \
+    cyvcf2 \
+    # Performance monitoring
+    psutil \
+    py-cpuinfo \
+    # AWS integration
+    boto3
+
+# Install R packages for genomics
+RUN R -e "install.packages(c('BiocManager', 'data.table', 'dplyr', 'ggplot2', 'parallel', 'doParallel'), repos='http://cran.us.r-project.org', clean=TRUE)" \
+    && R -e "BiocManager::install(c('Biostrings', 'GenomicRanges', 'IRanges', 'Rsamtools', 'VariantAnnotation'), clean=TRUE)"
+
+# Download and install BWA
+RUN wget https://github.com/lh3/bwa/archive/v0.7.17.tar.gz \
+    && tar -xzf v0.7.17.tar.gz \
+    && cd bwa-0.7.17 \
+    && make \
+    && cp bwa /usr/local/bin/ \
+    && cd .. \
+    && rm -rf bwa-0.7.17 v0.7.17.tar.gz
+
+# Download and install minimap2
+RUN wget https://github.com/lh3/minimap2/releases/download/v2.24/minimap2-2.24_x64-linux.tar.bz2 \
+    && tar -xjf minimap2-2.24_x64-linux.tar.bz2 \
+    && cp minimap2-2.24_x64-linux/minimap2 /usr/local/bin/ \
+    && rm -rf minimap2-2.24_x64-linux minimap2-2.24_x64-linux.tar.bz2
+
+# Download and install BLAST+
+RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.1+-x64-linux.tar.gz \
+    && tar -xzf ncbi-blast-2.14.1+-x64-linux.tar.gz \
+    && cp ncbi-blast-2.14.1+/bin/* /usr/local/bin/ \
+    && rm -rf ncbi-blast-2.14.1+ ncbi-blast-2.14.1+-x64-linux.tar.gz
+
+# Download and install GATK
+RUN wget https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip \
+    && unzip gatk-4.4.0.0.zip \
+    && cp gatk-4.4.0.0/gatk-package-4.4.0.0-local.jar /opt/gatk.jar \
+    && rm -rf gatk-4.4.0.0 gatk-4.4.0.0.zip \
+    && echo '#!/bin/bash\njava -jar /opt/gatk.jar "$@"' > /usr/local/bin/gatk \
+    && chmod +x /usr/local/bin/gatk
+
+# Install IQ-TREE for phylogenetic analysis
+RUN wget https://github.com/iqtree/iqtree2/releases/download/v2.2.2/iqtree-2.2.2-Linux.tar.gz \
+    && tar -xzf iqtree-2.2.2-Linux.tar.gz \
+    && cp iqtree-2.2.2-Linux/bin/iqtree2 /usr/local/bin/ \
+    && rm -rf iqtree-2.2.2-Linux iqtree-2.2.2-Linux.tar.gz
+
+# Copy benchmark scripts
+COPY genomics-benchmarks/ ./benchmarks/
+COPY shared-scripts/ ./shared/
+
+# Create test datasets
+RUN mkdir -p /data/test-datasets \
+    && cd /data/test-datasets \
+    # Generate synthetic genomics data for benchmarking
+    && python3 -c "
+import random
+import os
+
+# Generate synthetic FASTQ reads
+def generate_fastq(filename, num_reads=1000000, read_length=150):
+    bases = 'ACGT'
+    with open(filename, 'w') as f:
+        for i in range(num_reads):
+            seq = ''.join(random.choice(bases) for _ in range(read_length))
+            qual = ''.join(chr(33 + random.randint(20, 40)) for _ in range(read_length))
+            f.write(f'@read_{i}\n{seq}\n+\n{qual}\n')
+
+# Generate synthetic reference genome
+def generate_reference(filename, length=10000000):
+    bases = 'ACGT'
+    with open(filename, 'w') as f:
+        f.write('>synthetic_chromosome_1\n')
+        for i in range(0, length, 80):
+            seq = ''.join(random.choice(bases) for _ in range(min(80, length-i)))
+            f.write(seq + '\n')
+
+print('Generating synthetic test data...')
+generate_fastq('test_reads_1.fastq', 500000)
+generate_fastq('test_reads_2.fastq', 500000)
+generate_reference('test_reference.fasta')
+print('Test data generation complete')
+"
+
+# Set execution permissions
+RUN chmod +x benchmarks/*.sh shared/*.sh
+
+# Environment variables for reproducible benchmarks
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV NUMBA_NUM_THREADS=1
+
+# Default command
+CMD ["bash", "/opt/genomics-benchmarks/benchmarks/run_all_genomics_benchmarks.sh"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ps aux | grep -q benchmark || exit 1
